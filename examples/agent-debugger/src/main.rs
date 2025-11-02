@@ -162,11 +162,19 @@ async fn main() -> Result<()> {
                                             .with_importance(70),
                                     );
 
-                                    let response = serde_json::json!({
+                                    // Build response with request_id if present
+                                    let mut response = serde_json::json!({
                                         "agent": "DebugBot",
                                         "solution": solution,
                                         "status": "complete"
                                     });
+
+                                    // Copy request_id if present
+                                    if let Some(request_id) = request.get("request_id") {
+                                        if let Some(obj) = response.as_object_mut() {
+                                            obj.insert("request_id".to_string(), request_id.clone());
+                                        }
+                                    }
 
                                     let response_msg = Message::new(
                                         MessageType::Response,

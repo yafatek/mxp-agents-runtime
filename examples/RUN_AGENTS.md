@@ -100,13 +100,21 @@ Send to coordinator at `127.0.0.1:50051` as MXP `Call` message.
 ## MXP Protocol Flow
 
 ```
-1. Agent creates Message: Message::new(MessageType::AgentRegister, payload_bytes)
-2. Agent encodes: let bytes = message.encode()
-3. Agent sends via UDP: handle.send(&bytes, coordinator_addr)
-4. Coordinator receives: handle.receive(&mut buffer)
-5. Coordinator decodes: Message::decode(buffer)
-6. Process and respond following same flow
+1. Test Client sends Call to Coordinator
+2. Coordinator adds request_id and forwards Call to Agent
+3. Agent processes request via LLM
+4. Agent sends Response with request_id back to Coordinator
+5. Coordinator looks up original sender via request_id
+6. Coordinator forwards Response to Test Client
+7. Test Client receives and displays result
 ```
+
+**Implementation Details:**
+- Each request gets a unique `request_id` (UUID)
+- Coordinator tracks pending requests: `HashMap<request_id, original_sender_addr>`
+- Agents echo `request_id` in their responses
+- Coordinator uses `request_id` to route responses back to correct client
+- After routing, `request_id` is removed from pending map
 
 ## Architecture
 

@@ -42,6 +42,10 @@ async fn main() -> Result<()> {
     let agents: Arc<RwLock<HashMap<String, RegisteredAgent>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
+    // Track pending requests: request_id -> original_sender
+    let pending_requests: Arc<RwLock<HashMap<String, SocketAddr>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+
     info!("🚀 Coordinator ready\n");
     info!("═══════════════════════════════════════════════════════════════");
     info!("Start the other agents:");
@@ -51,6 +55,7 @@ async fn main() -> Result<()> {
 
     // Spawn blocking MXP receiver
     let agents_clone = Arc::clone(&agents);
+    let pending_clone = Arc::clone(&pending_requests);
     let handle_clone = handle.clone();
     tokio::task::spawn_blocking(move || loop {
         let mut buffer = handle_clone.acquire_buffer();
@@ -104,13 +109,38 @@ async fn main() -> Result<()> {
                         }
                         Some(MessageType::Response) => {
                             let payload = String::from_utf8_lossy(msg.payload());
-                            info!("📬 Response: {}\n", payload);
+                            info!("📬 Response from agent: {}", peer);
+
+                            // Extract request_id from response
+                            if let Ok(response) = serde_json::from_str::<serde_json::Value>(&payload) {
+                                if let Some(request_id) = response.get("request_id").and_then(|v| v.as_str()) {
+                                    let rt = tokio::runtime::Handle::current();
+                                    let original_sender = rt.block_on(async {
+                                        pending_clone.write().await.remove(request_id)
+                                    });
+
+                                    if let Some(client_addr) = original_sender {
+                                        info!("→ Forwarding response to original client: {}", client_addr);
+                                        
+                                        // Forward response to original client
+                                        let response_msg = Message::new(MessageType::Response, msg.payload().to_vec());
+                                        match handle_clone.send(&response_msg.encode(), client_addr) {
+                                            Ok(_) => info!("✓ Response forwarded to client\n"),
+                                            Err(e) => error!("Failed to forward response: {:?}", e),
+                                        }
+                                    } else {
+                                        warn!("No pending request found for ID: {}", request_id);
+                                    }
+                                } else {
+                                    warn!("Response missing request_id, cannot route back");
+                                }
+                            }
                         }
                         Some(MessageType::Call) => {
                             let payload = String::from_utf8_lossy(msg.payload());
                             info!("📞 Call request from {}: {}", peer, payload);
 
-                            if let Ok(request) = serde_json::from_str::<serde_json::Value>(&payload) {
+                            if let Ok(mut request) = serde_json::from_str::<serde_json::Value>(&payload) {
                                 if let Some(task_type) = request.get("type").and_then(|v| v.as_str()) {
                                     let rt = tokio::runtime::Handle::current();
                                     let agents_lock = rt.block_on(async { agents_clone.read().await });
@@ -128,8 +158,22 @@ async fn main() -> Result<()> {
                                     if let Some(agent) = target_agent {
                                         info!("→ Routing to {} at {}", agent.name, agent.endpoint);
 
-                                        // Forward the message
-                                        let forward_msg = Message::new(MessageType::Call, msg.payload().to_vec());
+                                        // Generate request ID and store original sender
+                                        let request_id = uuid::Uuid::new_v4().to_string();
+                                        rt.block_on(async {
+                                            pending_clone.write().await.insert(request_id.clone(), peer);
+                                        });
+
+                                        // Add request_id to the payload
+                                        if let Some(obj) = request.as_object_mut() {
+                                            obj.insert("request_id".to_string(), serde_json::Value::String(request_id));
+                                        }
+
+                                        // Forward the message with request_id
+                                        let forward_msg = Message::new(
+                                            MessageType::Call,
+                                            serde_json::to_vec(&request).unwrap()
+                                        );
                                         match handle_clone.send(&forward_msg.encode(), agent.endpoint) {
                                             Ok(_) => info!("✓ Request forwarded\n"),
                                             Err(e) => error!("Failed to forward: {:?}", e),
