@@ -1,27 +1,17 @@
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use agent_adapters::openai::{OpenAiAdapter, OpenAiConfig};
 use agent_kernel::{
-    AgentKernel, AgentMessageHandler, AgentRegistry, HandlerContext, HandlerResult,
-    LifecycleEvent, RegistrationConfig, SchedulerConfig, TaskScheduler,
+    AgentKernel, AgentRegistry, CollectingSink, KernelMessageHandler, LifecycleEvent,
+    RegistrationConfig, SchedulerConfig, TaskScheduler,
 };
 use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
+use agent_tools::registry::{ToolMetadata, ToolRegistry};
 use async_trait::async_trait;
 use mxp::{Message, MessageType};
-
-struct TestHandler {
-    calls: Arc<AtomicUsize>,
-}
-
-#[async_trait]
-impl AgentMessageHandler for TestHandler {
-    async fn handle_call(&self, _ctx: HandlerContext) -> HandlerResult {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(())
-    }
-}
+use serde_json::json;
 
 struct TestRegistry {
     registers: Arc<AtomicUsize>,
@@ -69,12 +59,20 @@ fn manifest(agent_id: AgentId) -> AgentManifest {
 #[tokio::test]
 async fn kernel_handles_messages_and_registry_hooks() {
     let agent_id = AgentId::random();
-    let handler_metrics = Arc::new(AtomicUsize::new(0));
-    let handler = Arc::new(TestHandler {
-        calls: Arc::clone(&handler_metrics),
-    });
-
     let scheduler = TaskScheduler::new(SchedulerConfig::default());
+    let adapter = Arc::new(OpenAiAdapter::new(
+        OpenAiConfig::new("gpt-integration").with_mock_responses(true),
+    ));
+    let tools = Arc::new(ToolRegistry::new());
+    tools
+        .register_tool(
+            ToolMetadata::new("echo", "1.0.0").unwrap(),
+            |input: serde_json::Value| async move { Ok(input) },
+        )
+        .unwrap();
+    let sink = CollectingSink::new();
+    let handler = Arc::new(KernelMessageHandler::new(adapter, tools, Arc::clone(&sink)));
+
     let mut kernel = AgentKernel::new(agent_id, handler, scheduler.clone());
 
     let registry = Arc::new(TestRegistry {
@@ -103,10 +101,24 @@ async fn kernel_handles_messages_and_registry_hooks() {
     assert!(registry.heartbeats.load(Ordering::SeqCst) >= 1);
 
     // Feed a Call message through the scheduler and wait for completion.
-    let message = Message::new(MessageType::Call, b"integration payload");
+    let payload = json!({
+        "messages": [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Ping"}
+        ],
+        "tools": [
+            {"name": "echo", "input": {"value": 42}}
+        ],
+        "temperature": 0.2
+    });
+    let payload = payload.to_string();
+    let message = Message::new(MessageType::Call, payload.as_bytes());
     let handle = kernel.schedule_message(message).unwrap();
     handle.await.unwrap().unwrap();
-    assert_eq!(handler_metrics.load(Ordering::SeqCst), 1);
+    let outcomes = sink.drain();
+    assert_eq!(outcomes.len(), 1);
+    assert!(outcomes[0].response().contains("mocked-openai"));
+    assert_eq!(outcomes[0].tool_results().len(), 1);
 
     kernel.transition(LifecycleEvent::Retire).unwrap();
     kernel.transition(LifecycleEvent::Terminate).unwrap();

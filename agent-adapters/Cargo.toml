@@ -9,6 +9,10 @@ publish = false
 agent-primitives = { path = "../agent-primitives" }
 anyhow.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
+reqwest.workspace = true
 

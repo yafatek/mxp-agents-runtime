@@ -4,16 +4,20 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
+use agent_adapters::openai::{OpenAiAdapter, OpenAiConfig};
 use agent_kernel::{
-    AgentKernel, AgentMessageHandler, AgentRegistry, HandlerContext, HandlerResult, LifecycleEvent,
-    RegistrationConfig, SchedulerConfig, TaskScheduler,
+    AgentKernel, AgentRegistry, CallOutcomeSink, KernelMessageHandler, LifecycleEvent,
+    RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink,
 };
 use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
-use anyhow::Result;
+use agent_tools::macros::tool;
+use agent_tools::registry::{ToolMetadata, ToolRegistry, ToolResult};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::Parser;
+use serde_json::Value;
 use tokio::signal::ctrl_c;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Example command-line arguments.
 #[derive(Parser, Debug)]
@@ -34,7 +38,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let agent_id = AgentId::random();
-    let handler = Arc::new(EchoHandler);
+    let handler = build_handler()?;
     let scheduler = TaskScheduler::new(SchedulerConfig::default());
 
     let mut kernel = AgentKernel::new(agent_id, handler, scheduler);
@@ -77,15 +81,30 @@ fn echo_capability() -> agent_primitives::Result<Capability> {
         .build()
 }
 
-struct EchoHandler;
+#[tool]
+async fn echo_tool(input: Value) -> ToolResult<Value> {
+    Ok(input)
+}
 
-#[async_trait]
-impl AgentMessageHandler for EchoHandler {
-    async fn handle_call(&self, ctx: HandlerContext) -> HandlerResult {
-        let payload = ctx.message().payload();
-        info!(payload = ?payload, "received call payload");
-        Ok(())
-    }
+fn build_handler() -> Result<Arc<KernelMessageHandler>> {
+    let adapter = Arc::new(OpenAiAdapter::new(
+        OpenAiConfig::new("gpt-mock").with_mock_responses(true),
+    ));
+
+    let tools = Arc::new(ToolRegistry::new());
+    let tool_capability = CapabilityId::new("tool.echo")?;
+    let metadata = ToolMetadata::new("echo", "1.0.0")
+        .map_err(|err| anyhow!(err.to_string()))?
+        .with_description("Echo tool for demonstration")
+        .with_capabilities(vec![tool_capability]);
+
+    tools
+        .register_tool(metadata, echo_tool)
+        .map_err(|err| anyhow!(err.to_string()))?;
+
+    let sink: Arc<dyn CallOutcomeSink> = Arc::new(TracingCallSink);
+
+    Ok(Arc::new(KernelMessageHandler::new(adapter, tools, sink)))
 }
 
 struct LoggingRegistry;
@@ -103,7 +122,7 @@ impl AgentRegistry for LoggingRegistry {
     }
 
     async fn deregister(&self, manifest: &AgentManifest) -> agent_kernel::RegistryResult<()> {
-        info!(agent_id = %manifest.id(), "deregistered agent");
+        warn!(agent_id = %manifest.id(), "deregistered agent");
         Ok(())
     }
 }

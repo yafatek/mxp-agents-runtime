@@ -5,6 +5,7 @@
 
 #![warn(missing_docs, clippy::pedantic)]
 
+mod call;
 mod lifecycle;
 mod mxp_handlers;
 mod registry;
@@ -19,6 +20,10 @@ use thiserror::Error;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
+pub use call::{
+    CallExecutor, CallOutcome, CallOutcomeSink, CollectingSink, KernelMessageHandler,
+    ToolInvocationResult, TracingCallSink,
+};
 pub use lifecycle::{AgentState, Lifecycle, LifecycleError, LifecycleEvent, LifecycleResult};
 pub use mxp_handlers::{AgentMessageHandler, HandlerContext, HandlerError, HandlerResult};
 pub use registry::{AgentRegistry, RegistrationConfig, RegistryError, RegistryResult};

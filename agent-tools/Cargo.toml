@@ -7,8 +7,12 @@ publish = false
 
 [dependencies]
 agent-primitives = { path = "../agent-primitives" }
+agent-tools-macros = { path = "../agent-tools-macros" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 

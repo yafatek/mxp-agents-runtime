@@ -1,17 +1,11 @@
-//! Tool discovery and capability enforcement.
+//! Tool discovery and capability enforcement utilities.
 //!
-//! Phase 0 scaffolding: macro expansion and runtime hooks land later.
+//! The modules exposed here make it possible to register annotated tool
+//! functions, associate capability metadata, and invoke them at runtime. Future
+//! phases will extend the sandbox implementation to carry out isolation.
 
 #![warn(missing_docs, clippy::pedantic)]
 
-pub mod macros {
-    //! Proc-macro helpers (placeholder until macro crate is added).
-}
-
-pub mod registry {
-    //! Runtime registry for tool metadata.
-}
-
-pub mod sandbox {
-    //! Tool execution sandboxing components.
-}
+pub mod macros;
+pub mod registry;
+pub mod sandbox;
