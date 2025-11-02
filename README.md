@@ -43,6 +43,13 @@ cargo add mxp-agents
 
 See `docs/overview.md` for architectural detail and roadmap. Keep this README as the quick orientation for contributors.
 
+### Documentation Map
+
+- `docs/architecture.md` — crate layout, component contracts, roadmap.
+- `docs/features.md` — current feature set and facade feature flags.
+- `docs/usage.md` — end-to-end setup guide for building an agent.
+- `docs/errors.md` — error surfaces and troubleshooting tips.
+
 
 ### Future
 // Move Memories to external Github projects, like embeddings, vectors ...etc each as a repo, then treat them as external deps where the run time can pull what is required

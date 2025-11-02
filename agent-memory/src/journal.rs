@@ -7,8 +7,8 @@ use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
-use crate::record::MemoryRecord;
 use crate::MemoryResult;
+use crate::record::MemoryRecord;
 
 /// Trait implemented by durable journals.
 #[async_trait]

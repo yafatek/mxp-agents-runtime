@@ -9,8 +9,8 @@ use serde_json::Value;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::embeddings::EmbeddingVector;
 use crate::MemoryResult;
+use crate::embeddings::EmbeddingVector;
 
 /// Record stored in a vector database.
 #[derive(Debug, Clone, Serialize, Deserialize)]

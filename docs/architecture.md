@@ -4,6 +4,11 @@ This document captures the first-pass architecture and build plan for the Agents
 
 Refer back to `docs/overview.md` for the narrative positioning; this document is the execution blueprint.
 
+Additional references:
+- `docs/features.md` — current feature set per crate and facade flag.
+- `docs/usage.md` — step-by-step instructions for bootstrapping an agent.
+- `docs/errors.md` — error catalogue and troubleshooting guidance.
+
 ### 1. Crate & Module Layout
 
 | Crate | Purpose | Key Modules |
@@ -65,11 +70,13 @@ All crates live under `agents-runtime-sdk/` using a Cargo workspace. Shared type
 - `PolicyEngine` loads policies (Rego/DSL) and evaluates `PolicyRequest` objects describing intent, data sensitivity, and tool usage.
 - Synchronous flow: returns `PolicyDecision::Allow`, `::Deny`, or `::Escalate` (human approval required).
 - Integrations with Relay governance service via MXP `Call` to dedicated governance agents.
-- Audit logs emitted for every decision.
+- Observers: `TracingPolicyObserver`, `MxpAuditObserver`, and `CompositePolicyObserver` enable multi-sink decision fan-out.
+- Audit events emitted for denials/escalations via MXP `Event` payloads for downstream governance agents.
 
 **2.9 Telemetry & Replay**
 - `tracing` instrumentation with standard span structure: agent_id, task_id, mxp_message_id.
 - Metrics exporters supporting Prometheus + OpenTelemetry.
+- MXP audit emission pipeline for policy denials/escalations.
 - Replay recorder capturing MXP exchanges and internal state snapshots for deterministic debugging.
 - Health reporting: readiness/liveness endpoints, heartbeat metrics, config digests.
 

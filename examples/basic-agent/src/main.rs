@@ -6,15 +6,16 @@ use std::time::Duration;
 
 use agent_adapters::ollama::{OllamaAdapter, OllamaConfig};
 use agent_kernel::{
-    AgentKernel, AgentRegistry, CallOutcomeSink, KernelMessageHandler, LifecycleEvent,
-    RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink, TracingPolicyObserver,
+    AgentKernel, AgentRegistry, CallOutcomeSink, CompositePolicyObserver, KernelMessageHandler,
+    LifecycleEvent, MxpAuditObserver, PolicyObserver, RegistrationConfig, SchedulerConfig,
+    TaskScheduler, TracingAuditEmitter, TracingCallSink, TracingPolicyObserver,
 };
 use agent_memory::{FileJournal, MemoryBusBuilder, VolatileConfig};
 use agent_policy::{PolicyDecision, PolicyRule, RuleBasedEngine, RuleMatcher};
 use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
 use agent_tools::macros::tool;
 use agent_tools::registry::{ToolMetadata, ToolRegistry, ToolResult};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use clap::Parser;
 use serde_json::Value;
@@ -121,7 +122,7 @@ async fn build_handler(agent_id: AgentId) -> Result<Arc<KernelMessageHandler>> {
 
     info!(journal = %journal_path.display(), "memory journal initialised");
 
-    let policy_engine = {
+    let (policy_engine, policy_observer) = {
         let engine = RuleBasedEngine::new(PolicyDecision::allow());
         let rule = PolicyRule::new(
             "deny-dangerous",
@@ -130,14 +131,22 @@ async fn build_handler(agent_id: AgentId) -> Result<Arc<KernelMessageHandler>> {
         )
         .map_err(|err| anyhow!(err.to_string()))?;
         engine.add_rule(rule);
-        Arc::new(engine)
+        let observer = CompositePolicyObserver::new([
+            Arc::new(TracingPolicyObserver) as Arc<dyn PolicyObserver>,
+            Arc::new(MxpAuditObserver::new(Arc::new(TracingAuditEmitter)))
+                as Arc<dyn PolicyObserver>,
+        ]);
+        (
+            Arc::new(engine),
+            Arc::new(observer) as Arc<dyn PolicyObserver>,
+        )
     };
 
     Ok(Arc::new(
         KernelMessageHandler::new(adapter, tools, sink)
             .with_memory(memory_bus)
             .with_policy(policy_engine)
-            .with_policy_observer(Arc::new(TracingPolicyObserver)),
+            .with_policy_observer(policy_observer),
     ))
 }
 

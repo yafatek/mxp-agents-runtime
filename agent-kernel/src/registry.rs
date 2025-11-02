@@ -2,15 +2,15 @@
 
 use std::fmt;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use agent_primitives::AgentManifest;
 use async_trait::async_trait;
 use thiserror::Error;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, MissedTickBehavior};
+use tokio::time::{MissedTickBehavior, sleep};
 use tracing::{info, warn};
 
 use crate::{AgentState, SchedulerError, TaskScheduler};

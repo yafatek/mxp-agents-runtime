@@ -21,8 +21,9 @@ use tokio::task::JoinHandle;
 use tracing::warn;
 
 pub use call::{
-    CallExecutor, CallOutcome, CallOutcomeSink, CollectingSink, KernelMessageHandler,
-    PolicyObserver, ToolInvocationResult, TracingCallSink, TracingPolicyObserver,
+    AuditEmitter, CallExecutor, CallOutcome, CallOutcomeSink, CollectingSink,
+    CompositePolicyObserver, KernelMessageHandler, MxpAuditObserver, PolicyObserver,
+    ToolInvocationResult, TracingAuditEmitter, TracingCallSink, TracingPolicyObserver,
 };
 pub use lifecycle::{AgentState, Lifecycle, LifecycleError, LifecycleEvent, LifecycleResult};
 pub use mxp_handlers::{AgentMessageHandler, HandlerContext, HandlerError, HandlerResult};
@@ -93,12 +94,13 @@ where
     /// not permitted from the current state.
     pub fn transition(&mut self, event: LifecycleEvent) -> KernelResult<AgentState> {
         let state = self.lifecycle.transition(event)?;
-        if let Some(controller) = &mut self.registry {
-            if let Err(err) = controller.on_state_change(state, &self.scheduler) {
-                warn!(?err, "registry hook failed during state transition");
-                return Err(err.into());
-            }
+        if let Some(controller) = &mut self.registry
+            && let Err(err) = controller.on_state_change(state, &self.scheduler)
+        {
+            warn!(?err, "registry hook failed during state transition");
+            return Err(err.into());
         }
+
         Ok(state)
     }
 
@@ -151,8 +153,8 @@ pub type KernelResult<T> = Result<T, KernelError>;
 mod tests {
     use super::*;
     use std::num::NonZeroUsize;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use agent_primitives::{Capability, CapabilityId};

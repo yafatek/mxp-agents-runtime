@@ -2,8 +2,8 @@
 
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use thiserror::Error;
 use tokio::sync::Semaphore;

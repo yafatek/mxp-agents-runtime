@@ -10,7 +10,7 @@ use hyper::{Body, Request, Uri};
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
 
-use crate::http_client::{build_https_client, HyperClient};
+use crate::http_client::{HyperClient, build_https_client};
 use crate::traits::{
     AdapterError, AdapterMetadata, AdapterResult, AdapterStream, InferenceChunk, InferenceRequest,
     ModelAdapter, PromptMessage,
