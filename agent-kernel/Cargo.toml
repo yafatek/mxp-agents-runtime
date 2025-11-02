@@ -9,6 +9,7 @@ publish = false
 agent-primitives = { path = "../agent-primitives" }
 agent-adapters = { path = "../agent-adapters" }
 agent-tools = { path = "../agent-tools" }
+agent-memory = { path = "../agent-memory" }
 async-trait.workspace = true
 futures.workspace = true
 mxp.workspace = true
@@ -17,4 +18,5 @@ serde_json.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+bytes.workspace = true
 

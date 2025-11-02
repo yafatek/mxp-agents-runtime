@@ -42,3 +42,8 @@ cargo add mxp-agents
 4. Instrument with `tracing` spans and policy hooks.
 
 See `docs/overview.md` for architectural detail and roadmap. Keep this README as the quick orientation for contributors.
+
+
+### Future
+// Move Memories to external Github projects, like embeddings, vectors ...etc each as a repo, then treat them as external deps where the run time can pull what is required
+// by default the agents are note require a memory to run tho, then can  be stateless. for now we will keep them in this project for the sake of simplicity. 

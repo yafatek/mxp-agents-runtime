@@ -5,8 +5,10 @@ use std::sync::{Arc, Mutex};
 use agent_adapters::traits::{
     AdapterError, InferenceRequest, MessageRole, ModelAdapter, PromptMessage,
 };
+use agent_memory::{MemoryBus, MemoryChannel, MemoryError, MemoryRecord, MemoryResult};
 use agent_tools::registry::{ToolError, ToolRegistry};
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
@@ -119,6 +121,10 @@ fn map_adapter_error(
     ))
 }
 
+fn map_memory_error(err: &MemoryError) -> HandlerError {
+    HandlerError::custom(format!("memory error: {err}"))
+}
+
 /// Outcome of processing a call message.
 #[derive(Debug)]
 pub struct CallOutcome {
@@ -171,6 +177,7 @@ struct ToolInvocation {
 pub struct KernelMessageHandler {
     executor: Arc<CallExecutor>,
     sink: Arc<dyn CallOutcomeSink>,
+    memory: Option<Arc<MemoryBus>>,
 }
 
 impl KernelMessageHandler {
@@ -182,7 +189,74 @@ impl KernelMessageHandler {
         sink: Arc<dyn CallOutcomeSink>,
     ) -> Self {
         let executor = Arc::new(CallExecutor::new(adapter, tools));
-        Self { executor, sink }
+        Self {
+            executor,
+            sink,
+            memory: None,
+        }
+    }
+
+    /// Configures the memory bus used to persist call transcripts.
+    #[must_use]
+    pub fn with_memory(mut self, memory: Arc<MemoryBus>) -> Self {
+        self.memory = Some(memory);
+        self
+    }
+
+    /// Installs or replaces the memory bus after construction.
+    pub fn set_memory(&mut self, memory: Arc<MemoryBus>) {
+        self.memory = Some(memory);
+    }
+
+    /// Returns the configured memory bus, if any.
+    #[must_use]
+    pub fn memory(&self) -> Option<&Arc<MemoryBus>> {
+        self.memory.as_ref()
+    }
+
+    async fn record_inbound(&self, ctx: &HandlerContext) -> MemoryResult<()> {
+        let Some(memory) = &self.memory else {
+            return Ok(());
+        };
+
+        let record = MemoryRecord::builder(MemoryChannel::Input, ctx.message().payload().clone())
+            .tag("mxp.call")?
+            .metadata("direction", Value::from("inbound"))
+            .metadata("message_type", Value::from("call"))
+            .metadata("agent_id", Value::from(ctx.agent_id().to_string()))
+            .build()?;
+
+        memory.record(record).await
+    }
+
+    async fn record_outbound(&self, outcome: &CallOutcome) -> MemoryResult<()> {
+        let Some(memory) = &self.memory else {
+            return Ok(());
+        };
+
+        for tool in outcome.tool_results() {
+            let payload = Bytes::from(serde_json::to_vec(&tool.output)?);
+            let record = MemoryRecord::builder(MemoryChannel::Tool, payload)
+                .tag("mxp.call")?
+                .tag("tool")?
+                .metadata("direction", Value::from("tool"))
+                .metadata("tool_name", Value::from(tool.name.clone()))
+                .build()?;
+            memory.record(record).await?;
+        }
+
+        let response_record = MemoryRecord::builder(
+            MemoryChannel::Output,
+            Bytes::from(outcome.response().to_owned()),
+        )
+        .tag("mxp.call")?
+        .metadata("direction", Value::from("outbound"))
+        .metadata("message_type", Value::from("call"))
+        .build()?;
+
+        memory.record(response_record).await?;
+
+        Ok(())
     }
 
     /// Returns the underlying executor for advanced scenarios.
@@ -195,7 +269,18 @@ impl KernelMessageHandler {
 #[async_trait]
 impl crate::AgentMessageHandler for KernelMessageHandler {
     async fn handle_call(&self, ctx: HandlerContext) -> HandlerResult {
+        self
+            .record_inbound(&ctx)
+            .await
+            .map_err(|err| map_memory_error(&err))?;
+
         let outcome = self.executor.execute(&ctx).await?;
+
+        self
+            .record_outbound(&outcome)
+            .await
+            .map_err(|err| map_memory_error(&err))?;
+
         self.sink.record(outcome);
         Ok(())
     }
@@ -267,9 +352,13 @@ mod tests {
     use super::*;
 
     use agent_adapters::traits::{AdapterMetadata, AdapterResult, AdapterStream, InferenceChunk};
+    use agent_memory::{FileJournal, MemoryBusBuilder, MemoryChannel, VolatileConfig};
     use agent_tools::registry::{ToolMetadata, ToolRegistry};
     use futures::stream;
     use serde_json::json;
+    use std::num::NonZeroUsize;
+    use std::sync::Arc;
+    use agent_primitives::AgentId;
 
     use crate::{AgentMessageHandler, HandlerContext};
 
@@ -288,6 +377,12 @@ mod tests {
             let chunk = InferenceChunk::new(self.response.clone(), true);
             Ok(Box::pin(stream::once(async move { Ok(chunk) })))
         }
+    }
+
+    fn temp_path() -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!("handler-test-{}.log", AgentId::random()));
+        path
     }
 
     #[tokio::test]
@@ -326,5 +421,59 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].response(), "static-response");
         assert_eq!(results[0].tool_results().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn persists_transcript_via_memory_bus() {
+        let adapter = Arc::new(StaticAdapter {
+            metadata: AdapterMetadata::new("test", "static"),
+            response: "ok".to_owned(),
+        });
+
+        let tools = Arc::new(ToolRegistry::new());
+        tools
+            .register_tool(
+                ToolMetadata::new("echo", "1.0.0").unwrap(),
+                |input: Value| async move { Ok(input) },
+            )
+            .unwrap();
+
+        let sink = CollectingSink::new();
+        let path = temp_path();
+        let journal: Arc<dyn agent_memory::Journal> =
+            Arc::new(FileJournal::open(&path).await.unwrap());
+        let bus = Arc::new(
+            MemoryBusBuilder::new(VolatileConfig::new(NonZeroUsize::new(8).unwrap()))
+                .with_journal(journal.clone())
+                .build()
+                .unwrap(),
+        );
+
+        let handler =
+            KernelMessageHandler::new(adapter, tools, sink.clone()).with_memory(bus.clone());
+
+        let payload = json!({
+            "messages": [
+                {"role": "user", "content": "hello"}
+            ],
+            "tools": [
+                {"name": "echo", "input": {"value": 1}}
+            ]
+        });
+
+        let message = mxp::Message::new(mxp::MessageType::Call, payload.to_string().as_bytes());
+        let ctx = HandlerContext::from_message(agent_primitives::AgentId::random(), message);
+
+        handler.handle_call(ctx).await.unwrap();
+
+        let records = bus.recent(5).await;
+        assert_eq!(records.len(), 3);
+        assert!(matches!(records[0].channel(), MemoryChannel::Input));
+        assert!(matches!(records[1].channel(), MemoryChannel::Tool));
+        assert!(matches!(records[2].channel(), MemoryChannel::Output));
+
+        if path.exists() {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }

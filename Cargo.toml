@@ -29,7 +29,7 @@ thiserror = "2.0.17"
 tracing = "0.1.41"
 mxp = "0.1.103"
 uuid = { version = "1.18.1", features = ["serde", "v4"] }
-tokio = { version = "1.48.0", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "signal"] }
+tokio = { version = "1.48.0", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "signal", "fs", "io-util"] }
 tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 futures = "0.3.31"
 serde_json = { version = "1.0.128", features = ["std"] }
@@ -38,4 +38,5 @@ hyper-rustls = { version = "0.24.2", default-features = false, features = ["http
 http = "1.1.0"
 rustls = { version = "0.21.12", default-features = false, features = ["tls12"] }
 webpki-roots = "0.25.3"
+bytes = { version = "1.7.1", features = ["serde"] }
 

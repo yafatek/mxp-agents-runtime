@@ -1,21 +1,21 @@
-//! Memory interfaces for agents.
-//!
-//! Phase 0 scaffolding: concrete stores arrive in later phases.
+//! Memory subsystem building blocks used by MXP agents.
 
 #![warn(missing_docs, clippy::pedantic)]
 
-pub mod volatile {
-    //! In-process volatile memory primitives.
-}
+mod bus;
+mod embeddings;
+mod error;
+mod journal;
+mod record;
+mod vector_store_api;
+mod volatile;
 
-pub mod journal {
-    //! Episodic journal persistence.
-}
-
-pub mod vector_store_api {
-    //! MXP Vector Store bindings.
-}
-
-pub mod embeddings {
-    //! Embedding generation interfaces.
-}
+pub use bus::{MemoryBus, MemoryBusBuilder};
+pub use embeddings::EmbeddingVector;
+pub use error::{MemoryError, MemoryResult};
+pub use journal::{FileJournal, Journal};
+pub use record::{MemoryChannel, MemoryRecord, MemoryRecordBuilder};
+pub use vector_store_api::{
+    LocalVectorStore, VectorMatch, VectorPoint, VectorQuery, VectorStoreClient,
+};
+pub use volatile::{VolatileConfig, VolatileMemory, VolatileStats};

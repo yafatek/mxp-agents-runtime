@@ -9,6 +9,7 @@ use agent_kernel::{
     AgentKernel, AgentRegistry, CallOutcomeSink, KernelMessageHandler, LifecycleEvent,
     RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink,
 };
+use agent_memory::{FileJournal, MemoryBusBuilder, VolatileConfig};
 use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
 use agent_tools::macros::tool;
 use agent_tools::registry::{ToolMetadata, ToolRegistry, ToolResult};
@@ -38,7 +39,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let agent_id = AgentId::random();
-    let handler = build_handler()?;
+    let handler = build_handler(agent_id).await?;
     let scheduler = TaskScheduler::new(SchedulerConfig::default());
 
     let mut kernel = AgentKernel::new(agent_id, handler, scheduler);
@@ -86,7 +87,7 @@ async fn echo_tool(input: Value) -> ToolResult<Value> {
     Ok(input)
 }
 
-fn build_handler() -> Result<Arc<KernelMessageHandler>> {
+async fn build_handler(agent_id: AgentId) -> Result<Arc<KernelMessageHandler>> {
     let adapter = Arc::new(
         OllamaAdapter::new(OllamaConfig::new("gemma3")).map_err(|err| anyhow!(err.to_string()))?,
     );
@@ -104,7 +105,24 @@ fn build_handler() -> Result<Arc<KernelMessageHandler>> {
 
     let sink: Arc<dyn CallOutcomeSink> = Arc::new(TracingCallSink);
 
-    Ok(Arc::new(KernelMessageHandler::new(adapter, tools, sink)))
+    let journal_path = std::env::temp_dir().join(format!("mxp-agent-{}-journal.log", agent_id));
+    let journal: Arc<dyn agent_memory::Journal> = Arc::new(
+        FileJournal::open(&journal_path)
+            .await
+            .map_err(|err| anyhow!(err.to_string()))?,
+    );
+    let memory_bus = Arc::new(
+        MemoryBusBuilder::new(VolatileConfig::default())
+            .with_journal(journal)
+            .build()
+            .map_err(|err| anyhow!(err.to_string()))?,
+    );
+
+    info!(journal = %journal_path.display(), "memory journal initialised");
+
+    Ok(Arc::new(
+        KernelMessageHandler::new(adapter, tools, sink).with_memory(memory_bus),
+    ))
 }
 
 struct LoggingRegistry;
