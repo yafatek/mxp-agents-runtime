@@ -43,18 +43,41 @@ let manifest = AgentManifest::builder()
 
 ### 3. Register Tools
 
+Annotate an async function with `#[tool]` metadata. The macro generates JSON
+glue, capability validation, and helper functions for registration.
+
 ```rust
-use mxp_agents::agent_tools::registry::{ToolRegistry, ToolMetadata};
+use mxp_agents::agent_tools::macros::tool;
+use mxp_agents::agent_tools::registry::{ToolRegistry, ToolResult};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+struct LookupRequest {
+    sku: String,
+}
+
+#[derive(Serialize)]
+struct LookupResponse {
+    quantity: u32,
+}
+
+#[tool(
+    name = "inv_lookup",
+    version = "1.0.0",
+    description = "Inventory lookup tool",
+    capabilities = ["inventory.lookup"],
+)]
+async fn inventory_lookup(req: LookupRequest) -> ToolResult<LookupResponse> {
+    // domain logic
+    Ok(LookupResponse { quantity: 42 })
+}
 
 let registry = ToolRegistry::new();
-registry.register_tool(
-    ToolMetadata::new("inv_lookup", "1.0.0")?,
-    |input| async move {
-        // implement lookup logic
-        Ok(input)
-    },
-)?;
+register_inventory_lookup(&registry)?;
 ```
+
+The macro also exposes `<tool_name>_binding()` if you prefer to add tools to a
+batch before registration.
 
 ### 4. Configure Adapters
 
@@ -92,12 +115,30 @@ Optionally attach observers to publish audit events:
 
 ```rust
 use mxp_agents::agent_kernel::{
-    CompositePolicyObserver, MxpAuditObserver, TracingAuditEmitter, TracingPolicyObserver,
+    AuditEmitter, CompositeAuditEmitter, CompositePolicyObserver, GovernanceAuditEmitter,
+    MxpAuditObserver, TracingAuditEmitter, TracingPolicyObserver,
+};
+use mxp::Transport;
+
+let mut audit_emitters: Vec<Arc<dyn AuditEmitter>> = vec![
+    Arc::new(TracingAuditEmitter) as Arc<_>,
+];
+
+if let Some(governance_addr) = governance_addr {
+    let transport = Transport::default();
+    let handle = transport.bind("0.0.0.0:0".parse()?)?;
+    audit_emitters.push(Arc::new(GovernanceAuditEmitter::new(handle, governance_addr)) as Arc<_>);
+}
+
+let audit_emitter: Arc<dyn AuditEmitter> = if audit_emitters.len() == 1 {
+    Arc::clone(&audit_emitters[0])
+} else {
+    Arc::new(CompositeAuditEmitter::new(audit_emitters))
 };
 
 let observer = CompositePolicyObserver::new([
     Arc::new(TracingPolicyObserver) as Arc<_>,
-    Arc::new(MxpAuditObserver::new(Arc::new(TracingAuditEmitter))) as Arc<_>,
+    Arc::new(MxpAuditObserver::new(audit_emitter)) as Arc<_>,
 ]);
 ```
 
@@ -110,7 +151,7 @@ let call_sink = Arc::new(TracingCallSink::default());
 let handler = KernelMessageHandler::new(adapter, Arc::new(registry), call_sink)
     .with_memory(Arc::new(memory_bus))
     .with_policy(Arc::new(policy))
-    .with_policy_observer(Arc::new(observer));
+    .with_policy_observer(observer);
 
 let kernel = AgentKernel::new(manifest, handler) // plus registry + scheduler config
     .with_scheduler(SchedulerConfig::default())
@@ -129,12 +170,12 @@ See `examples/basic-agent` for a ready-made binary that:
 - registers sample tools,
 - enforces a rule-based policy,
 - persists transcripts to disk,
-- emits audit events via `TracingAuditEmitter`.
+- emits audit events via `TracingAuditEmitter` and optionally forwards them to a governance agent.
 
 Run it with:
 
 ```sh
-cargo run -p basic-agent -- --model deepseek-r1:latest
+cargo run -p basic-agent -- --governance 127.0.0.1:9100
 ```
 
 ### Next Steps

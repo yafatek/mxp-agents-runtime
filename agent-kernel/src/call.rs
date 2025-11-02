@@ -1,6 +1,7 @@
 //! Call message execution pipeline.
 
 use std::fmt;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use agent_adapters::traits::{
@@ -15,9 +16,10 @@ use agent_tools::registry::{ToolError, ToolRegistry};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
-use mxp::{Message, MessageType};
+use mxp::{Message, MessageType, TransportHandle};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tokio::task;
 use tracing::{debug, info, warn};
 
 use crate::{HandlerContext, HandlerError, HandlerResult};
@@ -26,6 +28,37 @@ use crate::{HandlerContext, HandlerError, HandlerResult};
 pub trait AuditEmitter: Send + Sync {
     /// Emits the supplied MXP event message.
     fn emit(&self, message: Message);
+}
+
+/// Fan-out emitter that broadcasts audit events to multiple sinks.
+pub struct CompositeAuditEmitter {
+    emitters: Vec<Arc<dyn AuditEmitter>>,
+}
+
+impl CompositeAuditEmitter {
+    /// Creates a composite emitter from the supplied iterator.
+    #[must_use]
+    pub fn new<I>(emitters: I) -> Self
+    where
+        I: IntoIterator<Item = Arc<dyn AuditEmitter>>,
+    {
+        Self {
+            emitters: emitters.into_iter().collect(),
+        }
+    }
+
+    /// Adds an emitter to the composite collection.
+    pub fn push(&mut self, emitter: Arc<dyn AuditEmitter>) {
+        self.emitters.push(emitter);
+    }
+}
+
+impl AuditEmitter for CompositeAuditEmitter {
+    fn emit(&self, message: Message) {
+        for emitter in &self.emitters {
+            emitter.emit(message.clone());
+        }
+    }
 }
 
 /// Tracing-based audit emitter that logs MXP audit events.
@@ -40,6 +73,45 @@ impl AuditEmitter for TracingAuditEmitter {
             payload = %payload,
             "policy audit event emitted"
         );
+    }
+}
+
+/// Sends audit events to a remote governance agent using MXP transport.
+#[derive(Clone)]
+pub struct GovernanceAuditEmitter {
+    transport: TransportHandle,
+    target: SocketAddr,
+}
+
+impl GovernanceAuditEmitter {
+    /// Creates a new governance emitter.
+    #[must_use]
+    pub fn new(transport: TransportHandle, target: SocketAddr) -> Self {
+        Self { transport, target }
+    }
+}
+
+impl AuditEmitter for GovernanceAuditEmitter {
+    fn emit(&self, message: Message) {
+        let transport = self.transport.clone();
+        let target = self.target;
+        let msg_type = message.message_type();
+        let message_id = message.message_id();
+        let trace_id = message.trace_id();
+        let encoded = message.encode();
+
+        task::spawn(async move {
+            if let Err(err) = transport.send(&encoded, target) {
+                warn!(
+                    ?err,
+                    %target,
+                    message_id,
+                    trace_id,
+                    ?msg_type,
+                    "failed to deliver governance audit event",
+                );
+            }
+        });
     }
 }
 
@@ -745,8 +817,12 @@ mod tests {
     use futures::stream;
     use mxp::Message;
     use serde_json::json;
+    use std::io::ErrorKind;
+    use std::net::SocketAddr;
     use std::num::NonZeroUsize;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+    use tokio::sync::oneshot;
 
     use crate::{AgentMessageHandler, HandlerContext, HandlerError};
 
@@ -1054,6 +1130,87 @@ mod tests {
         if journal_path.exists() {
             let _ = std::fs::remove_file(&journal_path);
         }
+    }
+
+    #[test]
+    fn composite_audit_emitter_fans_out() {
+        let emitter_a = RecordingAuditEmitter::new();
+        let emitter_b = RecordingAuditEmitter::new();
+
+        let composite = CompositeAuditEmitter::new([
+            Arc::clone(&emitter_a) as Arc<dyn AuditEmitter>,
+            Arc::clone(&emitter_b) as Arc<dyn AuditEmitter>,
+        ]);
+
+        let message = Message::new(MessageType::Event, b"composite");
+        composite.emit(message);
+
+        let events_a = emitter_a.events.lock().expect("emitter A poisoned");
+        assert_eq!(events_a.len(), 1);
+        let events_b = emitter_b.events.lock().expect("emitter B poisoned");
+        assert_eq!(events_b.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn governance_emitter_transmits_over_mxp() {
+        let transport = mxp::Transport::default();
+        let receiver = match transport
+            .bind("127.0.0.1:0".parse::<SocketAddr>().expect("receiver addr"))
+        {
+            Ok(handle) => handle,
+            Err(mxp::transport::SocketError::Io(err))
+                if err.kind() == ErrorKind::PermissionDenied =>
+            {
+                eprintln!(
+                    "skipping governance emitter test: receiver bind requires elevated privileges"
+                );
+                return;
+            }
+            Err(err) => panic!("bind receiver: {err:?}"),
+        };
+        let receiver_addr = receiver.local_addr().expect("receiver local addr");
+        let sender = match transport.bind("127.0.0.1:0".parse::<SocketAddr>().expect("sender addr"))
+        {
+            Ok(handle) => handle,
+            Err(mxp::transport::SocketError::Io(err))
+                if err.kind() == ErrorKind::PermissionDenied =>
+            {
+                eprintln!(
+                    "skipping governance emitter test: sender bind requires elevated privileges"
+                );
+                return;
+            }
+            Err(err) => panic!("bind sender: {err:?}"),
+        };
+
+        let emitter = GovernanceAuditEmitter::new(sender, receiver_addr);
+        let message = Message::new(MessageType::Event, b"{\"audit\":true}");
+
+        emitter.emit(message.clone());
+
+        let (tx, rx) = oneshot::channel();
+        let recv_handle = receiver.clone();
+        let join = tokio::task::spawn_blocking(move || {
+            let mut buffer = recv_handle.acquire_buffer();
+            let result = recv_handle.receive(&mut buffer);
+            tx.send(result.map(|(len, _)| buffer.as_slice()[..len].to_vec()))
+                .ok();
+        });
+
+        let recv_result = tokio::time::timeout(Duration::from_millis(500), rx)
+            .await
+            .expect("timed out waiting for audit event")
+            .expect("audit receiver task cancelled");
+        let bytes: Vec<u8> = match recv_result {
+            Ok(buf) => buf,
+            Err(err) => panic!("receiver failed to capture event: {err:?}"),
+        };
+
+        join.await.expect("blocking receive failed");
+
+        let decoded = Message::decode(bytes).expect("decoded message");
+        assert_eq!(decoded.message_type(), Some(MessageType::Event));
+        assert_eq!(decoded.payload(), message.payload());
     }
 
     struct RecordingAuditEmitter {

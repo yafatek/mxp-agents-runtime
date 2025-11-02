@@ -54,6 +54,7 @@ surface area and recommended remediation steps.
 ### Observability & Audit Failures
 - The `TracingAuditEmitter` should never fail; if you implement a custom emitter, keep it resilient and non-blocking.
 - If audit events are missing, ensure the `MxpAuditObserver` is attached and policies can produce denials or escalations.
+- `GovernanceAuditEmitter` relies on MXP transport; network errors surface via `tracing::warn!` logs. Validate socket binding and remote reachability when troubleshooting.
 
 ### Escalation Playbooks
 - When `PolicyDecision::Escalate` is returned, the `required_approvals` list indicates stakeholders. Feed MXP audit events into your governance mesh so approvers receive actionable tickets.

@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 
 use agent_primitives::CapabilityId;
@@ -12,6 +13,41 @@ use thiserror::Error;
 
 /// Result alias for tool operations.
 pub type ToolResult<T> = Result<T, ToolError>;
+
+/// Future alias produced by generated tool bindings.
+pub type ToolFuture = Pin<Box<dyn Future<Output = ToolResult<Value>> + Send>>;
+
+/// Declarative binding returned by the `#[tool]` macro.
+#[derive(Clone)]
+pub struct ToolBinding {
+    metadata: ToolMetadata,
+    executor: fn(Value) -> ToolFuture,
+}
+
+impl ToolBinding {
+    /// Creates a new tool binding from metadata and an executor function.
+    #[must_use]
+    pub fn new(metadata: ToolMetadata, executor: fn(Value) -> ToolFuture) -> Self {
+        Self { metadata, executor }
+    }
+
+    /// Returns the metadata associated with this binding.
+    #[must_use]
+    pub fn metadata(&self) -> &ToolMetadata {
+        &self.metadata
+    }
+
+    /// Registers the binding with the provided registry.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`ToolError::DuplicateTool`] if a tool with the same name
+    /// has already been registered.
+    pub fn register(self, registry: &ToolRegistry) -> ToolResult<()> {
+        let ToolBinding { metadata, executor } = self;
+        registry.register_tool(metadata, executor)
+    }
+}
 
 /// Metadata describing a registered tool.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -188,6 +224,16 @@ impl ToolRegistry {
         Ok(())
     }
 
+    /// Registers a binding produced by the `#[tool]` macro.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::DuplicateTool`] if the binding name already exists
+    /// within the registry.
+    pub fn register_binding(&self, binding: ToolBinding) -> ToolResult<()> {
+        binding.register(self)
+    }
+
     /// Returns a handle to the tool matching the supplied name.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<ToolHandle> {
@@ -286,6 +332,20 @@ mod tests {
             .unwrap();
 
         let payload = serde_json::json!({ "message": "hello" });
+        let output = registry.invoke("echo", payload.clone()).await.unwrap();
+        assert_eq!(output, payload);
+    }
+
+    #[tokio::test]
+    async fn register_binding_invokes_executor() {
+        let registry = ToolRegistry::new();
+        let binding = ToolBinding::new(metadata(), |input: Value| -> ToolFuture {
+            Box::pin(async move { Ok(input) })
+        });
+
+        registry.register_binding(binding).unwrap();
+
+        let payload = serde_json::json!({ "message": "binding" });
         let output = registry.invoke("echo", payload.clone()).await.unwrap();
         assert_eq!(output, payload);
     }

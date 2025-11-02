@@ -50,8 +50,9 @@ mocked implementations ship in the public facade.
 - Sanitised base URL handling and structured error propagation.
 
 ### Agent Tools
-- `#[tool]` macro stub ready for future schema derivation.
-- `ToolRegistry` with metadata validation, capability tags, and async invocation.
+- `#[tool]` macro derives metadata, capability lists, JSON (de)serialisation, and exposes helper fns (`<name>_binding`, `register_<name>`).
+- Automatically bridges typed Rust structs to LLM-compatible JSON payloads.
+- `ToolRegistry` can register declarative bindings or raw executors; capability validation occurs at registration.
 - Sandbox module placeholder for capability-based isolation (Phase 3 roadmap).
 
 ### Example Agents
@@ -64,6 +65,8 @@ mocked implementations ship in the public facade.
 ### Observability Surface
 - `tracing` spans from policy observers and call outcomes.
 - Audit pipeline converts policy escalations and denials into MXP `Event` messages for downstream governance agents.
+- `CompositeAuditEmitter` fans events to multiple sinks (tracing, MXP governance delivery).
+- `GovernanceAuditEmitter` publishes events directly to remote agents over the MXP transport stack.
 
 ### Compatibility & Performance Guarantees
 - Zero-allocation hot paths in call execution and scheduler loops where applicable.

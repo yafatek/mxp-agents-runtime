@@ -72,6 +72,7 @@ All crates live under `agents-runtime-sdk/` using a Cargo workspace. Shared type
 - Integrations with Relay governance service via MXP `Call` to dedicated governance agents.
 - Observers: `TracingPolicyObserver`, `MxpAuditObserver`, and `CompositePolicyObserver` enable multi-sink decision fan-out.
 - Audit events emitted for denials/escalations via MXP `Event` payloads for downstream governance agents.
+- `CompositeAuditEmitter` and `GovernanceAuditEmitter` propagate audit events to tracing sinks and remote governance agents over MXP transport.
 
 **2.9 Telemetry & Replay**
 - `tracing` instrumentation with standard span structure: agent_id, task_id, mxp_message_id.
