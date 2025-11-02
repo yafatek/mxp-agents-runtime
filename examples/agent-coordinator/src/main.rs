@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 const COORDINATOR_PORT: u16 = 50051;
+const BUFFER_SIZE: usize = 32 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RegisteredAgent {
@@ -32,8 +33,16 @@ async fn main() -> Result<()> {
     info!("Listening on port {}", COORDINATOR_PORT);
 
     // Create MXP transport
-    let config = TransportConfig::default();
-    let transport = Transport::new(config);
+    let transport = Transport::new(TransportConfig {
+        buffer_size: BUFFER_SIZE,
+        max_buffers: 512,
+        read_timeout: Some(Duration::from_secs(30)),
+        write_timeout: Some(Duration::from_secs(10)),
+        #[cfg(feature = "debug-tools")]
+        pcap_send_path: None,
+        #[cfg(feature = "debug-tools")]
+        pcap_recv_path: None,
+    });
     let addr: SocketAddr = format!("127.0.0.1:{}", COORDINATOR_PORT).parse()?;
     let handle = transport.bind(addr).map_err(|e| anyhow::anyhow!("Bind failed: {:?}", e))?;
 

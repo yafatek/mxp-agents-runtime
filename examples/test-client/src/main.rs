@@ -1,12 +1,14 @@
 //! Test client to send requests to agents via MXP
 
+use std::io::ErrorKind;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use mxp::{Message, MessageType, Transport, TransportConfig};
+use mxp::{transport::SocketError, Message, MessageType, Transport, TransportConfig, TransportHandle};
 
 const COORDINATOR_ADDR: &str = "127.0.0.1:50051";
+const BUFFER_SIZE: usize = 32 * 1024;
 
 fn main() -> Result<()> {
     println!("🧪 MXP Agent Test Client\n");
@@ -23,8 +25,8 @@ fn main() -> Result<()> {
 
     // Create transport
     let config = TransportConfig {
-        buffer_size: 4096,
-        max_buffers: 128,
+        buffer_size: BUFFER_SIZE,
+        max_buffers: 256,
         read_timeout: Some(Duration::from_secs(30)),
         write_timeout: Some(Duration::from_secs(10)),
         #[cfg(feature = "debug-tools")]
@@ -67,20 +69,17 @@ fn main() -> Result<()> {
             println!("⏳ Waiting for response...\n");
 
             // Wait for response
-            let mut buffer = handle.acquire_buffer();
-            match handle.receive(&mut buffer) {
-                Ok((_len, peer)) => {
-                    if let Ok(msg) = Message::decode(buffer.as_slice().to_vec()) {
-                        if let Some(MessageType::Response) = msg.message_type() {
-                            if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
-                                println!("📬 Response from {}:\n", peer);
-                                println!("{}\n", serde_json::to_string_pretty(&response)?);
-                            }
+            match await_response(&handle, Duration::from_secs(60)) {
+                Ok((peer, msg)) => {
+                    if let Some(MessageType::Response) = msg.message_type() {
+                        if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
+                            println!("📬 Response from {}:\n", peer);
+                            println!("{}\n", serde_json::to_string_pretty(&response)?);
                         }
                     }
                 }
-                Err(e) => {
-                    eprintln!("❌ Receive error: {:?}", e);
+                Err(err) => {
+                    eprintln!("❌ Receive error: {}", err);
                 }
             }
         }
@@ -104,20 +103,17 @@ fn main() -> Result<()> {
             println!("⏳ Waiting for solution...\n");
 
             // Wait for response
-            let mut buffer = handle.acquire_buffer();
-            match handle.receive(&mut buffer) {
-                Ok((_len, peer)) => {
-                    if let Ok(msg) = Message::decode(buffer.as_slice().to_vec()) {
-                        if let Some(MessageType::Response) = msg.message_type() {
-                            if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
-                                println!("📬 Response from {}:\n", peer);
-                                println!("{}\n", serde_json::to_string_pretty(&response)?);
-                            }
+            match await_response(&handle, Duration::from_secs(60)) {
+                Ok((peer, msg)) => {
+                    if let Some(MessageType::Response) = msg.message_type() {
+                        if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
+                            println!("📬 Response from {}:\n", peer);
+                            println!("{}\n", serde_json::to_string_pretty(&response)?);
                         }
                     }
                 }
-                Err(e) => {
-                    eprintln!("❌ Receive error: {:?}", e);
+                Err(err) => {
+                    eprintln!("❌ Receive error: {}", err);
                 }
             }
         }
@@ -127,5 +123,41 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn await_response(handle: &TransportHandle, max_wait: Duration) -> Result<(SocketAddr, Message)> {
+    let start = Instant::now();
+
+    loop {
+        let mut buffer = handle.acquire_buffer();
+        match handle.receive(&mut buffer) {
+            Ok((_len, peer)) => match Message::decode(buffer.as_slice().to_vec()) {
+                Ok(msg) => return Ok((peer, msg)),
+                Err(err) => {
+                    println!("⚠️ Received undecodable response from {}: {:?}", peer, err);
+                    if start.elapsed() >= max_wait {
+                        return Err(anyhow::anyhow!(
+                            "timed out waiting for valid response after {:?}",
+                            max_wait
+                        ));
+                    }
+                }
+            },
+            Err(SocketError::Io(ref err))
+                if matches!(err.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
+            {
+                if start.elapsed() >= max_wait {
+                    return Err(anyhow::anyhow!(
+                        "timed out waiting for response after {:?}",
+                        max_wait
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("receive failed: {:?}", e));
+            }
+        }
+    }
 }
 

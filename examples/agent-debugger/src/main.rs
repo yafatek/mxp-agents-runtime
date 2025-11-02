@@ -1,5 +1,6 @@
 //! Debugging Agent - Helps debug via MXP
 
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -9,12 +10,13 @@ use agent_primitives::AgentId;
 use agent_prompts::{ContextMessage, ContextWindowConfig, ContextWindowManager, PromptTemplate};
 use anyhow::Result;
 use futures::StreamExt;
-use mxp::{Message, MessageType, Transport, TransportConfig};
+use mxp::{transport::SocketError, Message, MessageType, Transport, TransportConfig};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 const AGENT_PORT: u16 = 50053;
 const COORDINATOR_ADDR: &str = "127.0.0.1:50051";
+const BUFFER_SIZE: usize = 32 * 1024;
 
 #[derive(Serialize, Deserialize)]
 struct RegisterPayload {
@@ -38,7 +40,7 @@ async fn main() -> Result<()> {
 
     // Create MXP transport
     let transport = Transport::new(TransportConfig {
-        buffer_size: 4096,
+        buffer_size: BUFFER_SIZE,
         max_buffers: 128,
         read_timeout: Some(Duration::from_secs(30)),
         write_timeout: Some(Duration::from_secs(10)),
@@ -191,6 +193,12 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
+            }
+            Err(SocketError::Io(ref err))
+                if matches!(err.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
+            {
+                debug!("MXP receive timed out; continuing to poll");
+                std::thread::sleep(Duration::from_millis(10));
             }
             Err(e) => {
                 error!("Receive error: {:?}", e);
