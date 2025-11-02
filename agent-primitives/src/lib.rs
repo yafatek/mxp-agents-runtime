@@ -5,6 +5,7 @@
 mod capability;
 mod error;
 mod ids;
+mod manifest;
 
 /// Capability descriptors and supporting builders.
 pub use capability::{Capability, CapabilityBuilder, CapabilityId};
@@ -12,3 +13,5 @@ pub use capability::{Capability, CapabilityBuilder, CapabilityId};
 pub use error::{Error, Result};
 /// Unique identifier for MXP agents within the mesh.
 pub use ids::AgentId;
+/// Agent metadata advertised to the Relay mesh directory.
+pub use manifest::{AgentManifest, AgentManifestBuilder};
