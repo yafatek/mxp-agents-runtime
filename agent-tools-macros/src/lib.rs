@@ -10,8 +10,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::parse_macro_input;
 use syn::spanned::Spanned;
 use syn::{
-    Error, Expr, ExprArray, ItemFn, Lit, LitStr, MetaNameValue, PathArguments, Result, ReturnType,
-    Type,
+    Error, Expr, ExprArray, Ident, ItemFn, Lit, LitStr, MetaNameValue, PathArguments, Result,
+    ReturnType, Type, parse_quote,
 };
 
 #[derive(Default)]
@@ -89,7 +89,7 @@ fn parse_capabilities(expr: Expr) -> Result<Vec<LitStr>> {
     }
 }
 
-fn extract_success_type(output: &ReturnType) -> Result<&Type> {
+fn extract_success_type(output: &ReturnType) -> Result<Type> {
     match output {
         ReturnType::Type(_, ty) => match ty.as_ref() {
             Type::Path(path) => {
@@ -111,7 +111,7 @@ fn extract_success_type(output: &ReturnType) -> Result<&Type> {
                             ));
                         }
                         match &args.args[0] {
-                            syn::GenericArgument::Type(ty) => Ok(ty),
+                            syn::GenericArgument::Type(ty) => Ok((*ty).clone()),
                             other => Err(Error::new(
                                 other.span(),
                                 "ToolResult generic argument must be a concrete type",
@@ -122,7 +122,7 @@ fn extract_success_type(output: &ReturnType) -> Result<&Type> {
                         last.arguments.span(),
                         "ToolResult must specify a success type",
                     )),
-                    other => Err(Error::new(
+                    other @ PathArguments::Parenthesized(_) => Err(Error::new(
                         other.span(),
                         "unsupported ToolResult generic arguments",
                     )),
@@ -158,6 +158,7 @@ impl Parse for ToolAttrInput {
 }
 
 #[proc_macro_attribute]
+#[allow(clippy::too_many_lines, clippy::missing_panics_doc)]
 pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args_tokens = parse_macro_input!(attr as ToolAttrInput);
     let args = match ToolArgs::parse(args_tokens.entries) {
@@ -165,7 +166,7 @@ pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.to_compile_error().into(),
     };
 
-    let function = parse_macro_input!(item as ItemFn);
+    let mut function = parse_macro_input!(item as ItemFn);
 
     if function.sig.asyncness.is_none() {
         return Error::new(function.sig.ident.span(), "tool functions must be async")
@@ -173,35 +174,67 @@ pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
     }
 
-    if function.sig.inputs.len() != 1 {
+    let mut arguments = Vec::new();
+    for arg in &function.sig.inputs {
+        match arg {
+            syn::FnArg::Typed(pat_type) => {
+                let ident = match pat_type.pat.as_ref() {
+                    syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+                    other => {
+                        return Error::new(
+                            other.span(),
+                            "tool parameters must be simple identifiers",
+                        )
+                        .to_compile_error()
+                        .into();
+                    }
+                };
+                arguments.push((ident, (*pat_type.ty).clone()));
+            }
+            syn::FnArg::Receiver(_) => {
+                return Error::new(
+                    function.sig.inputs.span(),
+                    "tool functions cannot take `self` receivers",
+                )
+                .to_compile_error()
+                .into();
+            }
+        }
+    }
+    if arguments.is_empty() {
         return Error::new(
-            function.sig.inputs.span(),
-            "tool functions must accept exactly one argument representing the input payload",
+            function.sig.span(),
+            "tool functions must accept at least one argument",
         )
         .to_compile_error()
         .into();
     }
 
-    let input_ty = match function.sig.inputs.first().unwrap() {
-        syn::FnArg::Typed(pat_type) => pat_type.ty.as_ref(),
-        syn::FnArg::Receiver(_) => {
-            return Error::new(
-                function.sig.inputs.span(),
-                "tool functions cannot take `self` receivers",
-            )
-            .to_compile_error()
-            .into();
-        }
-    };
-
-    let success_ty = match extract_success_type(&function.sig.output) {
+    let original_output = function.sig.output.clone();
+    let success_ty = match extract_success_type(&original_output) {
         Ok(ty) => ty,
         Err(err) => return err.to_compile_error().into(),
     };
 
+    function.sig.asyncness = None;
+    let success_ty_future = success_ty.clone();
+    function.sig.output = parse_quote!(-> ::agent_tools::registry::ToolFuture<#success_ty_future>);
+    let original_body = function.block;
+    function.block = Box::new(parse_quote!({
+        ::std::boxed::Box::pin(async move #original_body)
+    }));
+
     let fn_ident = &function.sig.ident;
     let binding_ident = format_ident!("{}_binding", fn_ident);
     let register_ident = format_ident!("register_{}", fn_ident);
+    let mut const_name = fn_ident.to_string().to_uppercase();
+    if !const_name.ends_with("_TOOL") {
+        const_name.push_str("_TOOL");
+    }
+    let const_ident = Ident::new(&const_name, Span::call_site());
+    let arg_types: Vec<Type> = arguments.iter().map(|(_, ty)| ty.clone()).collect();
+    let success_ty_clone = success_ty.clone();
+
     let vis = &function.vis;
 
     let name_lit = args.name.expect("name checked above");
@@ -234,6 +267,51 @@ pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    let decode_arguments = if arguments.len() == 1 {
+        let (ident, ty) = &arguments[0];
+        quote! {
+            let #ident: #ty = ::serde_json::from_value(input).map_err(|err| {
+                ::agent_tools::registry::ToolError::execution(format!(
+                    "failed to decode `{}` payload: {err}",
+                    #name_lit,
+                ))
+            })?;
+        }
+    } else {
+        let field_decoders = arguments.iter().map(|(ident, ty)| {
+            let field_name = ident.to_string();
+            quote! {
+                let value = map.remove(#field_name).ok_or_else(|| {
+                    ::agent_tools::registry::ToolError::execution(format!(
+                        "tool `{}` missing field `{}`",
+                        #name_lit,
+                        #field_name,
+                    ))
+                })?;
+                let #ident: #ty = ::serde_json::from_value(value).map_err(|err| {
+                    ::agent_tools::registry::ToolError::execution(format!(
+                        "failed to decode `{}` field `{}`: {err}",
+                        #name_lit,
+                        #field_name,
+                    ))
+                })?;
+            }
+        });
+        quote! {
+            let mut map = match input {
+                ::serde_json::Value::Object(map) => map,
+                other => {
+                    return Err(::agent_tools::registry::ToolError::execution(format!(
+                        "tool `{}` expects an object payload",
+                        #name_lit,
+                    )));
+                }
+            };
+            #(#field_decoders)*
+        }
+    };
+    let arg_idents: Vec<_> = arguments.iter().map(|(ident, _)| ident).collect();
+
     let expanded = quote! {
         #function
 
@@ -246,13 +324,8 @@ pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
                 metadata,
                 |input: ::serde_json::Value| -> ::agent_tools::registry::ToolFuture {
                     ::std::boxed::Box::pin(async move {
-                        let payload: #input_ty = ::serde_json::from_value(input).map_err(|err| {
-                            ::agent_tools::registry::ToolError::execution(format!(
-                                "failed to decode `{}` payload: {err}",
-                                #name_lit,
-                            ))
-                        })?;
-                        let result: #success_ty = #fn_ident(payload).await?;
+                        #decode_arguments
+                        let result: #success_ty = #fn_ident(#(#arg_idents),*).await?;
                         let json = ::serde_json::to_value(result).map_err(|err| {
                             ::agent_tools::registry::ToolError::execution(format!(
                                 "failed to encode `{}` response: {err}",
@@ -270,6 +343,17 @@ pub fn tool(attr: TokenStream, item: TokenStream) -> TokenStream {
         ) -> ::agent_tools::registry::ToolResult<()> {
             let binding = #binding_ident()?;
             registry.register_binding(binding)
+        }
+
+        #[allow(non_upper_case_globals)]
+        #vis const #const_ident: ::agent_tools::registry::ToolDescriptor =
+            ::agent_tools::registry::ToolDescriptor::new(#binding_ident);
+
+        ::agent_tools::inventory::submit! {
+            ::agent_tools::registry::ToolTypeRegistration::new(
+                ::core::any::type_name::<fn(#(#arg_types),*) -> ::agent_tools::registry::ToolFuture<#success_ty_clone>>() ,
+                ::agent_tools::registry::ToolDescriptor::new(#binding_ident),
+            )
         }
     };
 

@@ -12,7 +12,7 @@ use agent_policy::{
     DecisionKind, PolicyAction, PolicyDecision, PolicyEngine, PolicyError, PolicyRequest,
 };
 use agent_primitives::AgentId;
-use agent_tools::registry::{ToolError, ToolRegistry};
+use agent_tools::registry::{ToolBinding, ToolError, ToolRegistry, descriptor_from_type_name};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
@@ -588,6 +588,15 @@ impl KernelMessageHandler {
         }
     }
 
+    /// Creates a builder that automates tool registration and optional components.
+    #[must_use]
+    pub fn builder(
+        adapter: Arc<dyn ModelAdapter>,
+        sink: Arc<dyn CallOutcomeSink>,
+    ) -> KernelMessageHandlerBuilder {
+        KernelMessageHandlerBuilder::new(adapter, sink)
+    }
+
     /// Configures the memory bus used to persist call transcripts.
     #[must_use]
     pub fn with_memory(mut self, memory: Arc<MemoryBus>) -> Self {
@@ -727,6 +736,95 @@ impl KernelMessageHandler {
     #[must_use]
     pub fn executor(&self) -> &CallExecutor {
         &self.executor
+    }
+}
+
+/// Builder for [`KernelMessageHandler`] that automates tool registration and optional components.
+pub struct KernelMessageHandlerBuilder {
+    adapter: Arc<dyn ModelAdapter>,
+    sink: Arc<dyn CallOutcomeSink>,
+    tools: Vec<ToolBinding>,
+    memory: Option<Arc<MemoryBus>>,
+    policy: Option<Arc<dyn PolicyEngine>>,
+    policy_observer: Option<Arc<dyn PolicyObserver>>,
+}
+
+impl KernelMessageHandlerBuilder {
+    fn new(adapter: Arc<dyn ModelAdapter>, sink: Arc<dyn CallOutcomeSink>) -> Self {
+        Self {
+            adapter,
+            sink,
+            tools: Vec::new(),
+            memory: None,
+            policy: None,
+            policy_observer: None,
+        }
+    }
+
+    /// Registers tool functions; descriptors are resolved automatically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] if any referenced function is missing a `#[tool]` annotation
+    /// or if the generated binding fails validation.
+    pub fn with_tools<F, I>(mut self, tools: I) -> Result<Self, ToolError>
+    where
+        F: Copy + 'static,
+        I: IntoIterator<Item = F>,
+    {
+        for tool in tools {
+            let type_name = std::any::type_name_of_val(&tool);
+            let descriptor = descriptor_from_type_name(type_name);
+            self.tools.push(descriptor.binding()?);
+        }
+        Ok(self)
+    }
+
+    /// Configures the memory bus used to persist call transcripts.
+    #[must_use]
+    pub fn with_memory(mut self, memory: Arc<MemoryBus>) -> Self {
+        self.memory = Some(memory);
+        self
+    }
+
+    /// Installs or replaces the policy engine.
+    #[must_use]
+    pub fn with_policy(mut self, policy: Arc<dyn PolicyEngine>) -> Self {
+        self.policy = Some(policy);
+        self
+    }
+
+    /// Installs or replaces the policy observer.
+    #[must_use]
+    pub fn with_policy_observer(mut self, observer: Arc<dyn PolicyObserver>) -> Self {
+        self.policy_observer = Some(observer);
+        self
+    }
+
+    /// Finalises the builder, registering tools and returning a configured handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] if tool registration fails (for example, duplicate names).
+    pub fn build(self) -> Result<KernelMessageHandler, ToolError> {
+        let registry = Arc::new(ToolRegistry::new());
+        for binding in self.tools {
+            registry.register_binding(binding)?;
+        }
+
+        let mut handler = KernelMessageHandler::new(self.adapter, registry, self.sink);
+
+        if let Some(memory) = self.memory {
+            handler.set_memory(memory);
+        }
+        if let Some(policy) = self.policy {
+            handler.set_policy(policy);
+        }
+        if let Some(observer) = self.policy_observer {
+            handler.set_policy_observer(observer);
+        }
+
+        Ok(handler)
     }
 }
 

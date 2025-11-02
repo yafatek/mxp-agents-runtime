@@ -1,5 +1,3 @@
-//! Runtime registry for tool metadata and execution.
-
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -7,6 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use agent_primitives::CapabilityId;
 use async_trait::async_trait;
+use inventory::collect;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -15,7 +14,7 @@ use thiserror::Error;
 pub type ToolResult<T> = Result<T, ToolError>;
 
 /// Future alias produced by generated tool bindings.
-pub type ToolFuture = Pin<Box<dyn Future<Output = ToolResult<Value>> + Send>>;
+pub type ToolFuture<T = Value> = Pin<Box<dyn Future<Output = ToolResult<T>> + Send>>;
 
 /// Declarative binding returned by the `#[tool]` macro.
 #[derive(Clone)]
@@ -47,6 +46,72 @@ impl ToolBinding {
         let ToolBinding { metadata, executor } = self;
         registry.register_tool(metadata, executor)
     }
+}
+
+/// Descriptor referencing a tool binding factory.
+#[derive(Clone, Copy)]
+pub struct ToolDescriptor {
+    factory: fn() -> ToolResult<ToolBinding>,
+}
+
+impl ToolDescriptor {
+    /// Creates a new descriptor from the supplied factory function.
+    #[must_use]
+    pub const fn new(factory: fn() -> ToolResult<ToolBinding>) -> Self {
+        Self { factory }
+    }
+
+    /// Produces a binding from this descriptor.
+    pub fn binding(self) -> ToolResult<ToolBinding> {
+        (self.factory)()
+    }
+}
+
+/// Registration record used for function-type lookups.
+#[derive(Clone, Copy)]
+pub struct ToolTypeRegistration {
+    type_name: &'static str,
+    descriptor: ToolDescriptor,
+}
+
+impl ToolTypeRegistration {
+    /// Creates a new registration entry.
+    #[must_use]
+    pub fn new(type_name: &'static str, descriptor: ToolDescriptor) -> Self {
+        Self {
+            type_name,
+            descriptor,
+        }
+    }
+
+    /// Matches this registration against the supplied type name.
+    #[must_use]
+    pub fn matches(&self, type_name: &str) -> bool {
+        self.type_name == type_name
+    }
+
+    /// Returns the associated descriptor.
+    #[must_use]
+    pub fn descriptor(&self) -> ToolDescriptor {
+        self.descriptor
+    }
+}
+
+collect!(ToolTypeRegistration);
+
+/// Returns the descriptor previously registered for the supplied function type.
+///
+/// # Panics
+///
+/// Panics if the function has not been registered with the `#[tool]` macro.
+#[must_use]
+pub fn descriptor_from_type_name(type_name: &str) -> ToolDescriptor {
+    for registration in inventory::iter::<ToolTypeRegistration> {
+        if registration.matches(type_name) {
+            return registration.descriptor();
+        }
+    }
+    panic!("tool `{type_name}` was not registered; ensure it is annotated with #[tool]");
 }
 
 /// Metadata describing a registered tool.

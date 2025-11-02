@@ -34,6 +34,73 @@ cargo add mxp-agents
 - Agents can share external state (memory bus, MXP Vector Store) or remain fully isolated.
 - Governance and policy enforcement are first-class: hooks exist for allow/deny decisions and human-in-the-loop steps.
 
+### Quick Start
+
+```rust
+use agent_adapters::ollama::{OllamaAdapter, OllamaConfig};
+use agent_adapters::traits::{InferenceRequest, MessageRole, ModelAdapter, PromptMessage};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create an adapter (works with OpenAI, Anthropic, Gemini, or Ollama)
+    let adapter = OllamaAdapter::new(OllamaConfig::new("gemma2:2b"))?;
+
+    // Build a request with system prompt
+    let request = InferenceRequest::new(vec![
+        PromptMessage::new(MessageRole::User, "What is MXP?"),
+    ])?
+    .with_system_prompt("You are an expert on MXP protocol")
+    .with_temperature(0.7);
+
+    // Get streaming response
+    let mut stream = adapter.infer(request).await?;
+    
+    // Process chunks
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        print!("{}", chunk.delta);
+    }
+    
+    Ok(())
+}
+```
+
+### System Prompts
+
+All adapters support system prompts with provider-native optimizations:
+
+```rust
+// OpenAI/Ollama: Prepends as first message
+let openai = OpenAiAdapter::new(OpenAiConfig::from_env("gpt-4"))?;
+
+// Anthropic: Uses dedicated 'system' parameter
+let anthropic = AnthropicAdapter::new(AnthropicConfig::from_env("claude-3-5-sonnet-20241022"))?;
+
+// Gemini: Uses 'systemInstruction' field
+let gemini = GeminiAdapter::new(GeminiConfig::from_env("gemini-1.5-pro"))?;
+
+// Same API works across all providers
+let request = InferenceRequest::new(messages)?
+    .with_system_prompt("You are a helpful assistant");
+```
+
+### Context Window Management (Optional)
+
+For long conversations, enable automatic context management:
+
+```rust
+use agent_prompts::ContextWindowConfig;
+
+let adapter = OllamaAdapter::new(config)?
+    .with_context_config(ContextWindowConfig {
+        max_tokens: 4096,
+        recent_window_size: 10,
+        ..Default::default()
+    });
+
+// SDK automatically manages conversation history within token budget
+```
+
 ### Getting started
 
 1. Model your agent using the runtime primitives (`AgentKernel`, adapters, tool registry).
@@ -41,13 +108,13 @@ cargo add mxp-agents
 3. Configure memory providers (in-memory ring buffer today, pluggable MXP Vector Store soon).
 4. Instrument with `tracing` spans and policy hooks.
 
-See `docs/overview.md` for architectural detail and roadmap. Keep this README as the quick orientation for contributors.
+See `docs/overview.md` for architectural detail and `docs/usage.md` for comprehensive examples.
 
 ### Documentation Map
 
 - `docs/architecture.md` — crate layout, component contracts, roadmap.
 - `docs/features.md` — current feature set and facade feature flags.
-- `docs/usage.md` — end-to-end setup guide for building an agent.
+- `docs/usage.md` — end-to-end setup guide for building an agent, including tooling examples.
 - `docs/errors.md` — error surfaces and troubleshooting tips.
 
 

@@ -16,6 +16,8 @@ use crate::traits::{
     MessageRole, ModelAdapter, PromptMessage,
 };
 
+use agent_prompts::ContextWindowConfig;
+
 /// Configuration for the `Ollama` adapter.
 #[derive(Clone, Debug)]
 pub struct OllamaConfig {
@@ -76,6 +78,7 @@ pub struct OllamaAdapter {
     metadata: AdapterMetadata,
     timeout: Duration,
     default_temperature: Option<f32>,
+    context_config: Option<ContextWindowConfig>,
 }
 
 impl fmt::Debug for OllamaAdapter {
@@ -111,11 +114,39 @@ impl OllamaAdapter {
             metadata,
             timeout: config.timeout,
             default_temperature: config.default_temperature,
+            context_config: None,
         })
     }
 
+    /// Configures context window management (optional).
+    ///
+    /// When set, the adapter will automatically manage conversation history
+    /// to stay within token budgets.
+    #[must_use]
+    pub fn with_context_config(mut self, config: ContextWindowConfig) -> Self {
+        self.context_config = Some(config);
+        self
+    }
+
+    /// Returns the configured context window config if set.
+    #[must_use]
+    pub const fn context_config(&self) -> Option<&ContextWindowConfig> {
+        self.context_config.as_ref()
+    }
+
     fn build_request(&self, request: &InferenceRequest) -> ChatRequest {
-        let messages = request.messages().iter().map(map_prompt_message).collect();
+        let mut messages = Vec::new();
+
+        // Handle system prompt: prepend as first message if provided
+        if let Some(system_prompt) = request.system_prompt() {
+            messages.push(ChatMessage {
+                role: "system".to_owned(),
+                content: system_prompt.to_owned(),
+            });
+        }
+
+        // Add conversation messages
+        messages.extend(request.messages().iter().map(map_prompt_message));
 
         let options = if request.temperature().is_some()
             || self.default_temperature.is_some()

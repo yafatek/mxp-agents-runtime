@@ -12,6 +12,7 @@ members = [
     "agent-config",
     "mxp-agents",
     "examples/basic-agent",
+    "examples/prompt-management",
 ]
 resolver = "2"
 

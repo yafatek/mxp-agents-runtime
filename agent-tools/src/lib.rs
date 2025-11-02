@@ -7,5 +7,8 @@
 #![warn(missing_docs, clippy::pedantic)]
 
 pub mod macros;
+/// Tool registry and execution runtime.
 pub mod registry;
+
+pub use inventory;
 pub mod sandbox;

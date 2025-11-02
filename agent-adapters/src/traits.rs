@@ -178,6 +178,15 @@ impl PromptMessage {
 /// Request submitted to a model adapter.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct InferenceRequest {
+    /// Optional system prompt that guides model behavior.
+    /// Adapters will transform this to provider-specific formats:
+    /// - OpenAI: Prepended as {"role": "system", "content": "..."}
+    /// - Anthropic: Extracted to top-level "system" parameter
+    /// - Gemini: Transformed to "systemInstruction"
+    /// - Ollama: Prepended as {"role": "system", "content": "..."}
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    system_prompt: Option<String>,
+    /// Conversation messages (user, assistant, tool).
     messages: Vec<PromptMessage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<u32>,
@@ -201,11 +210,19 @@ impl InferenceRequest {
         }
 
         Ok(Self {
+            system_prompt: None,
             messages,
             max_output_tokens: None,
             temperature: None,
             tools: Vec::new(),
         })
+    }
+
+    /// Sets the system prompt that guides model behavior.
+    #[must_use]
+    pub fn with_system_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.system_prompt = Some(prompt.into());
+        self
     }
 
     /// Sets the maximum output token budget.
@@ -227,6 +244,12 @@ impl InferenceRequest {
     pub fn with_tools(mut self, tools: Vec<String>) -> Self {
         self.tools = tools;
         self
+    }
+
+    /// Returns the system prompt if configured.
+    #[must_use]
+    pub fn system_prompt(&self) -> Option<&str> {
+        self.system_prompt.as_deref()
     }
 
     /// Returns the prompt messages.

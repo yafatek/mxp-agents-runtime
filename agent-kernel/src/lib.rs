@@ -23,8 +23,8 @@ use tracing::warn;
 pub use call::{
     AuditEmitter, CallExecutor, CallOutcome, CallOutcomeSink, CollectingSink,
     CompositeAuditEmitter, CompositePolicyObserver, GovernanceAuditEmitter, KernelMessageHandler,
-    MxpAuditObserver, PolicyObserver, ToolInvocationResult, TracingAuditEmitter, TracingCallSink,
-    TracingPolicyObserver,
+    KernelMessageHandlerBuilder, MxpAuditObserver, PolicyObserver, ToolInvocationResult,
+    TracingAuditEmitter, TracingCallSink, TracingPolicyObserver,
 };
 pub use lifecycle::{AgentState, Lifecycle, LifecycleError, LifecycleEvent, LifecycleResult};
 pub use mxp_handlers::{AgentMessageHandler, HandlerContext, HandlerError, HandlerResult};

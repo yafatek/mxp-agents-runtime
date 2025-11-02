@@ -16,6 +16,8 @@ use crate::traits::{
     ModelAdapter, PromptMessage,
 };
 
+use agent_prompts::ContextWindowConfig;
+
 /// Environment variable used when loading configuration automatically.
 pub const OPENAI_API_KEY_ENV: &str = "OPENAI_API_KEY";
 
@@ -91,6 +93,7 @@ pub struct OpenAiAdapter {
     api_key: String,
     timeout: Duration,
     default_temperature: Option<f32>,
+    context_config: Option<ContextWindowConfig>,
 }
 
 impl fmt::Debug for OpenAiAdapter {
@@ -129,11 +132,39 @@ impl OpenAiAdapter {
             api_key,
             timeout: config.timeout,
             default_temperature: config.default_temperature,
+            context_config: None,
         })
     }
 
+    /// Configures context window management (optional).
+    ///
+    /// When set, the adapter will automatically manage conversation history
+    /// to stay within token budgets.
+    #[must_use]
+    pub fn with_context_config(mut self, config: ContextWindowConfig) -> Self {
+        self.context_config = Some(config);
+        self
+    }
+
+    /// Returns the configured context window config if set.
+    #[must_use]
+    pub const fn context_config(&self) -> Option<&ContextWindowConfig> {
+        self.context_config.as_ref()
+    }
+
     fn build_request(&self, request: &InferenceRequest) -> ChatCompletionRequest {
-        let messages = request.messages().iter().map(map_prompt_message).collect();
+        let mut messages = Vec::new();
+
+        // Handle system prompt: prepend as first message if provided
+        if let Some(system_prompt) = request.system_prompt() {
+            messages.push(OpenAiMessage {
+                role: "system".to_owned(),
+                content: system_prompt.to_owned(),
+            });
+        }
+
+        // Add conversation messages
+        messages.extend(request.messages().iter().map(map_prompt_message));
 
         ChatCompletionRequest {
             model: self.metadata.model().to_owned(),
