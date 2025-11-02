@@ -10,6 +10,7 @@ agent-primitives = { path = "../agent-primitives" }
 agent-adapters = { path = "../agent-adapters" }
 agent-tools = { path = "../agent-tools" }
 agent-memory = { path = "../agent-memory" }
+agent-policy = { path = "../agent-policy" }
 async-trait.workspace = true
 futures.workspace = true
 mxp.workspace = true

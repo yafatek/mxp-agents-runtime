@@ -7,9 +7,10 @@ use std::time::Duration;
 use agent_adapters::ollama::{OllamaAdapter, OllamaConfig};
 use agent_kernel::{
     AgentKernel, AgentRegistry, CallOutcomeSink, KernelMessageHandler, LifecycleEvent,
-    RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink,
+    RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink, TracingPolicyObserver,
 };
 use agent_memory::{FileJournal, MemoryBusBuilder, VolatileConfig};
+use agent_policy::{PolicyDecision, PolicyRule, RuleBasedEngine, RuleMatcher};
 use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
 use agent_tools::macros::tool;
 use agent_tools::registry::{ToolMetadata, ToolRegistry, ToolResult};
@@ -120,8 +121,23 @@ async fn build_handler(agent_id: AgentId) -> Result<Arc<KernelMessageHandler>> {
 
     info!(journal = %journal_path.display(), "memory journal initialised");
 
+    let policy_engine = {
+        let engine = RuleBasedEngine::new(PolicyDecision::allow());
+        let rule = PolicyRule::new(
+            "deny-dangerous",
+            RuleMatcher::for_tool("rm_all"),
+            PolicyDecision::deny("dangerous tool disabled in development"),
+        )
+        .map_err(|err| anyhow!(err.to_string()))?;
+        engine.add_rule(rule);
+        Arc::new(engine)
+    };
+
     Ok(Arc::new(
-        KernelMessageHandler::new(adapter, tools, sink).with_memory(memory_bus),
+        KernelMessageHandler::new(adapter, tools, sink)
+            .with_memory(memory_bus)
+            .with_policy(policy_engine)
+            .with_policy_observer(Arc::new(TracingPolicyObserver)),
     ))
 }
 

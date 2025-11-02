@@ -22,7 +22,7 @@ use tracing::warn;
 
 pub use call::{
     CallExecutor, CallOutcome, CallOutcomeSink, CollectingSink, KernelMessageHandler,
-    ToolInvocationResult, TracingCallSink,
+    PolicyObserver, ToolInvocationResult, TracingCallSink, TracingPolicyObserver,
 };
 pub use lifecycle::{AgentState, Lifecycle, LifecycleError, LifecycleEvent, LifecycleResult};
 pub use mxp_handlers::{AgentMessageHandler, HandlerContext, HandlerError, HandlerResult};

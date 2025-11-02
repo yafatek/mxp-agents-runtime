@@ -6,9 +6,16 @@ license.workspace = true
 publish = false
 
 [dependencies]
+agent-memory = { path = "../agent-memory" }
 agent-primitives = { path = "../agent-primitives" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
 

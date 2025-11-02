@@ -10,6 +10,7 @@ agent-kernel = { path = "../../agent-kernel" }
 agent-primitives = { path = "../../agent-primitives" }
 agent-adapters = { path = "../../agent-adapters" }
 agent-tools = { path = "../../agent-tools" }
+agent-policy = { path = "../../agent-policy" }
 agent-memory = { path = "../../agent-memory" }
 anyhow.workspace = true
 async-trait.workspace = true

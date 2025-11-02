@@ -1,21 +1,16 @@
 //! Governance policy evaluation for agents.
-//!
-//! Phase 0 scaffolding: concrete evaluators land in later phases.
 
 #![warn(missing_docs, clippy::pedantic)]
 
-pub mod engine {
-    //! Policy engine core.
-}
+mod contracts;
+mod decision;
+mod engine;
+mod integrations;
 
-pub mod contracts {
-    //! Policy contracts and schema definitions.
-}
-
-pub mod decision {
-    //! Policy decision representations.
-}
-
-pub mod integrations {
-    //! Integrations with external governance systems.
-}
+pub use contracts::{PolicyAction, PolicyContext, PolicyRequest};
+pub use decision::{DecisionKind, PolicyDecision};
+pub use engine::{
+    ActionMatcher, PolicyEngine, PolicyError, PolicyResult, PolicyRule, RuleBasedEngine,
+    RuleMatcher,
+};
+pub use integrations::{GovernanceClient, RemotePolicyEngine};
