@@ -1,0 +1,18 @@
+[package]
+name = "agent-debugger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-adapters = { path = "../../agent-adapters" }
+agent-prompts = { path = "../../agent-prompts" }
+agent-primitives = { path = "../../agent-primitives" }
+mxp = "0.1.103"
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+futures.workspace = true
+

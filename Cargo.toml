@@ -13,6 +13,10 @@ members = [
     "mxp-agents",
     "examples/basic-agent",
     "examples/prompt-management",
+    "examples/agent-coordinator",
+    "examples/agent-code-reviewer",
+    "examples/agent-debugger",
+    "examples/test-client",
 ]
 resolver = "2"
 

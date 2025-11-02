@@ -1,0 +1,15 @@
+[package]
+name = "agent-coordinator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-primitives = { path = "../../agent-primitives" }
+mxp = "0.1.103"
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
