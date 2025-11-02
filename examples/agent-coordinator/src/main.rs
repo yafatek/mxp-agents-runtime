@@ -9,7 +9,7 @@ use anyhow::Result;
 use mxp::{Message, MessageType, Transport, TransportConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 const COORDINATOR_PORT: u16 = 50051;
 
@@ -181,6 +181,15 @@ async fn main() -> Result<()> {
                                     } else {
                                         error!("No agent found for task type: {}", task_type);
                                     }
+                                }
+                            }
+                        }
+                        Some(MessageType::AgentHeartbeat) => {
+                            // Handle heartbeat from agents
+                            if let Ok(payload) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
+                                if let Some(agent_id) = payload.get("agent_id").and_then(|v| v.as_str()) {
+                                    debug!("❤️  Heartbeat from agent {}", agent_id);
+                                    // Optionally update last_seen timestamp here
                                 }
                             }
                         }
