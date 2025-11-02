@@ -9,7 +9,7 @@ use anyhow::Result;
 use mxp::{Message, MessageType, Transport, TransportConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 const COORDINATOR_PORT: u16 = 50051;
 
@@ -184,15 +184,6 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-                        Some(MessageType::AgentHeartbeat) => {
-                            // Handle heartbeat from agents
-                            if let Ok(payload) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
-                                if let Some(agent_id) = payload.get("agent_id").and_then(|v| v.as_str()) {
-                                    debug!("❤️  Heartbeat from agent {}", agent_id);
-                                    // Optionally update last_seen timestamp here
-                                }
-                            }
-                        }
                         _ => {
                             info!("Received {:?} from {}", msg.message_type(), peer);
                         }
@@ -200,12 +191,7 @@ async fn main() -> Result<()> {
                 }
             }
             Err(e) => {
-                // WouldBlock is expected when no message is available (timeout)
-                // Check if it's an IO error with WouldBlock kind
-                let is_timeout = format!("{:?}", e).contains("WouldBlock");
-                if !is_timeout {
-                    warn!("Receive error: {:?}", e);
-                }
+                warn!("Receive error: {:?}", e);
                 std::thread::sleep(Duration::from_millis(100));
             }
         }
