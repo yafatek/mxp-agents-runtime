@@ -191,7 +191,12 @@ async fn main() -> Result<()> {
                 }
             }
             Err(e) => {
-                warn!("Receive error: {:?}", e);
+                // WouldBlock is expected when no message is available (timeout)
+                // Check if it's an IO error with WouldBlock kind
+                let is_timeout = format!("{:?}", e).contains("WouldBlock");
+                if !is_timeout {
+                    warn!("Receive error: {:?}", e);
+                }
                 std::thread::sleep(Duration::from_millis(100));
             }
         }

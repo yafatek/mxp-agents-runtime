@@ -99,6 +99,36 @@ async fn main() -> Result<()> {
 
     info!("🚀 Agent ready, waiting for review requests...\n");
 
+    // Spawn heartbeat task
+    tokio::spawn({
+        let handle_clone = handle.clone();
+        let agent_id_clone = agent_id.to_string();
+        async move {
+            // Wait a bit before starting heartbeats
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            
+            loop {
+                tokio::time::sleep(Duration::from_secs(15)).await;
+                
+                let heartbeat_payload = serde_json::json!({
+                    "agent_id": agent_id_clone,
+                    "status": "healthy",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                });
+                
+                let heartbeat = Message::new(
+                    MessageType::AgentHeartbeat,
+                    serde_json::to_vec(&heartbeat_payload).unwrap_or_default()
+                );
+                
+                let coordinator: SocketAddr = COORDINATOR_ADDR.parse().unwrap();
+                if let Err(e) = handle_clone.send(&heartbeat.encode(), coordinator) {
+                    error!("Failed to send heartbeat: {:?}", e);
+                }
+            }
+        }
+    });
+
     // Message loop
     tokio::task::spawn_blocking(move || loop {
         let mut buffer = handle.acquire_buffer();
@@ -161,7 +191,12 @@ async fn main() -> Result<()> {
                 }
             }
             Err(e) => {
-                error!("Receive error: {:?}", e);
+                // WouldBlock is expected when no message is available (timeout)
+                // Check if it's an IO error with WouldBlock kind
+                let is_timeout = format!("{:?}", e).contains("WouldBlock");
+                if !is_timeout {
+                    error!("Receive error: {:?}", e);
+                }
                 std::thread::sleep(Duration::from_millis(100));
             }
         }
