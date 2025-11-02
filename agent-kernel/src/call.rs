@@ -266,17 +266,36 @@ impl CallOutcomeSink for CollectingSink {
 mod tests {
     use super::*;
 
-    use agent_adapters::openai::{OpenAiAdapter, OpenAiConfig};
+    use agent_adapters::traits::{AdapterMetadata, AdapterResult, AdapterStream, InferenceChunk};
     use agent_tools::registry::{ToolMetadata, ToolRegistry};
+    use futures::stream;
     use serde_json::json;
 
     use crate::{AgentMessageHandler, HandlerContext};
 
+    struct StaticAdapter {
+        metadata: AdapterMetadata,
+        response: String,
+    }
+
+    #[async_trait]
+    impl ModelAdapter for StaticAdapter {
+        fn metadata(&self) -> &AdapterMetadata {
+            &self.metadata
+        }
+
+        async fn infer(&self, _request: InferenceRequest) -> AdapterResult<AdapterStream> {
+            let chunk = InferenceChunk::new(self.response.clone(), true);
+            Ok(Box::pin(stream::once(async move { Ok(chunk) })))
+        }
+    }
+
     #[tokio::test]
     async fn executes_call_pipeline() {
-        let adapter = Arc::new(OpenAiAdapter::new(
-            OpenAiConfig::new("gpt-mock").with_mock_responses(true),
-        ));
+        let adapter = Arc::new(StaticAdapter {
+            metadata: AdapterMetadata::new("test", "static"),
+            response: "static-response".to_owned(),
+        });
         let tools = Arc::new(ToolRegistry::new());
         tools
             .register_tool(
@@ -305,7 +324,7 @@ mod tests {
 
         let results = sink.drain();
         assert_eq!(results.len(), 1);
-        assert!(results[0].response().contains("mocked-openai"));
+        assert_eq!(results[0].response(), "static-response");
         assert_eq!(results[0].tool_results().len(), 1);
     }
 }

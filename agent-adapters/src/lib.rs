@@ -11,3 +11,5 @@ pub mod mxp_model;
 pub mod ollama;
 pub mod openai;
 pub mod traits;
+
+mod http_client;

@@ -33,5 +33,9 @@ tokio = { version = "1.48.0", features = ["rt", "rt-multi-thread", "macros", "sy
 tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 futures = "0.3.31"
 serde_json = { version = "1.0.128", features = ["std"] }
-reqwest = { version = "0.12.5", default-features = false, features = ["json", "stream", "rustls-tls"] }
+hyper = { version = "0.14.28", features = ["http1", "client", "tcp"] }
+hyper-rustls = { version = "0.24.2", default-features = false, features = ["http1", "tls12"] }
+http = "1.1.0"
+rustls = { version = "0.21.12", default-features = false, features = ["tls12"] }
+webpki-roots = "0.25.3"
 

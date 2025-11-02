@@ -14,5 +14,10 @@ serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-reqwest.workspace = true
+hyper.workspace = true
+hyper-rustls.workspace = true
+http.workspace = true
+serde_json.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
 

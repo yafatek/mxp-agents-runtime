@@ -2,7 +2,9 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_adapters::openai::{OpenAiAdapter, OpenAiConfig};
+use agent_adapters::traits::{
+    AdapterMetadata, AdapterResult, AdapterStream, InferenceChunk, InferenceRequest, ModelAdapter,
+};
 use agent_kernel::{
     AgentKernel, AgentRegistry, CollectingSink, KernelMessageHandler, LifecycleEvent,
     RegistrationConfig, SchedulerConfig, TaskScheduler,
@@ -11,6 +13,7 @@ use agent_primitives::{AgentId, AgentManifest, Capability, CapabilityId};
 use agent_tools::registry::{ToolMetadata, ToolRegistry};
 use async_trait::async_trait;
 use mxp::{Message, MessageType};
+use futures::stream;
 use serde_json::json;
 
 struct TestRegistry {
@@ -60,9 +63,7 @@ fn manifest(agent_id: AgentId) -> AgentManifest {
 async fn kernel_handles_messages_and_registry_hooks() {
     let agent_id = AgentId::random();
     let scheduler = TaskScheduler::new(SchedulerConfig::default());
-    let adapter = Arc::new(OpenAiAdapter::new(
-        OpenAiConfig::new("gpt-integration").with_mock_responses(true),
-    ));
+    let adapter = Arc::new(StaticAdapter::new("static-response"));
     let tools = Arc::new(ToolRegistry::new());
     tools
         .register_tool(
@@ -117,7 +118,7 @@ async fn kernel_handles_messages_and_registry_hooks() {
     handle.await.unwrap().unwrap();
     let outcomes = sink.drain();
     assert_eq!(outcomes.len(), 1);
-    assert!(outcomes[0].response().contains("mocked-openai"));
+    assert_eq!(outcomes[0].response(), "static-response");
     assert_eq!(outcomes[0].tool_results().len(), 1);
 
     kernel.transition(LifecycleEvent::Retire).unwrap();
@@ -129,5 +130,31 @@ async fn kernel_handles_messages_and_registry_hooks() {
 
     // Clean up scheduler tasks.
     scheduler.close();
+}
+
+struct StaticAdapter {
+    metadata: AdapterMetadata,
+    response: String,
+}
+
+impl StaticAdapter {
+    fn new(response: impl Into<String>) -> Self {
+        Self {
+            metadata: AdapterMetadata::new("test", "static"),
+            response: response.into(),
+        }
+    }
+}
+
+#[async_trait]
+impl ModelAdapter for StaticAdapter {
+    fn metadata(&self) -> &AdapterMetadata {
+        &self.metadata
+    }
+
+    async fn infer(&self, _request: InferenceRequest) -> AdapterResult<AdapterStream> {
+        let chunk = InferenceChunk::new(self.response.clone(), true);
+        Ok(Box::pin(stream::once(async move { Ok(chunk) })))
+    }
 }
 

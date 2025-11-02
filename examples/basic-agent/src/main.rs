@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_adapters::openai::{OpenAiAdapter, OpenAiConfig};
+use agent_adapters::ollama::{OllamaAdapter, OllamaConfig};
 use agent_kernel::{
     AgentKernel, AgentRegistry, CallOutcomeSink, KernelMessageHandler, LifecycleEvent,
     RegistrationConfig, SchedulerConfig, TaskScheduler, TracingCallSink,
@@ -87,9 +87,9 @@ async fn echo_tool(input: Value) -> ToolResult<Value> {
 }
 
 fn build_handler() -> Result<Arc<KernelMessageHandler>> {
-    let adapter = Arc::new(OpenAiAdapter::new(
-        OpenAiConfig::new("gpt-mock").with_mock_responses(true),
-    ));
+    let adapter = Arc::new(
+        OllamaAdapter::new(OllamaConfig::new("gemma3")).map_err(|err| anyhow!(err.to_string()))?,
+    );
 
     let tools = Arc::new(ToolRegistry::new());
     let tool_capability = CapabilityId::new("tool.echo")?;
