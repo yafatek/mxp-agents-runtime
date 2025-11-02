@@ -1,0 +1,13 @@
+[package]
+name = "agent-prompts"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+agent-primitives = { path = "../agent-primitives" }
+anyhow.workspace = true
+serde.workspace = true
+tracing.workspace = true
+

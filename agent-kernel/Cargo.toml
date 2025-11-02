@@ -1,0 +1,15 @@
+[package]
+name = "agent-kernel"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+agent-primitives = { path = "../agent-primitives" }
+async-trait.workspace = true
+mxp.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+

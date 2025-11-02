@@ -1,0 +1,14 @@
+[package]
+name = "agent-policy"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+agent-primitives = { path = "../agent-primitives" }
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+tracing.workspace = true
+

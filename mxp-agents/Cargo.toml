@@ -1,0 +1,39 @@
+[package]
+name = "mxp-agents"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+readme = "../README.md"
+description = "MXP-native autonomous agent runtime SDK"
+
+[dependencies]
+agent-primitives = { path = "../agent-primitives" }
+agent-kernel = { path = "../agent-kernel", optional = true }
+agent-adapters = { path = "../agent-adapters", optional = true }
+agent-tools = { path = "../agent-tools", optional = true }
+agent-memory = { path = "../agent-memory", optional = true }
+agent-policy = { path = "../agent-policy", optional = true }
+agent-telemetry = { path = "../agent-telemetry", optional = true }
+agent-prompts = { path = "../agent-prompts", optional = true }
+agent-config = { path = "../agent-config", optional = true }
+
+[features]
+default = [
+    "kernel",
+    "adapters",
+    "tools",
+    "memory",
+    "policy",
+    "telemetry",
+    "prompts",
+    "config",
+]
+kernel = ["dep:agent-kernel"]
+adapters = ["dep:agent-adapters"]
+tools = ["dep:agent-tools"]
+memory = ["dep:agent-memory"]
+policy = ["dep:agent-policy"]
+telemetry = ["dep:agent-telemetry"]
+prompts = ["dep:agent-prompts"]
+config = ["dep:agent-config"]
+

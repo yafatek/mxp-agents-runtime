@@ -1,0 +1,66 @@
+# Rust/Cargo
+/target/
+**/target/
+!**/src/target/     # in case you have any folder named 'target' in src
+
+# Executables and binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+*.rlib
+
+# Packages
+Cargo.lock
+
+# Node/JS (in case of WASM, some agent tools)
+/node_modules/
+npm-debug.log
+
+# IDE/editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*.DS_Store
+
+# Backup files
+*~
+*.bak
+
+# Coverage/Testing
+coverage/
+*.profraw
+*.profdata
+
+# Other Rust tools
+/.cargo/
+.cargo/
+
+# Environment/Secrets
+.env
+.env.*
+
+# Byproducts of documentation and benchmarking
+/target/doc/
+/target/criterion/
+/target/debug/
+/target/release/
+/target/package/
+
+# MacOS metadata
+.DS_Store
+
+# Windows thumbnails
+Thumbs.db
+
+# Ctags
+tags
+
+# Ignore generated protobuf or bindgen output, if any
+**/*.pb.rs
+**/*_pb.rs
+**/*_bindgen.rs
+
