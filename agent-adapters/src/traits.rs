@@ -180,10 +180,10 @@ impl PromptMessage {
 pub struct InferenceRequest {
     /// Optional system prompt that guides model behavior.
     /// Adapters will transform this to provider-specific formats:
-    /// - OpenAI: Prepended as {"role": "system", "content": "..."}
-    /// - Anthropic: Extracted to top-level "system" parameter
-    /// - Gemini: Transformed to "systemInstruction"
-    /// - Ollama: Prepended as {"role": "system", "content": "..."}
+    /// - `OpenAI`: Prepended as `{"role": "system", "content": "..."}`
+    /// - `Anthropic`: Extracted to top-level `"system"` parameter
+    /// - `Gemini`: Transformed to `"systemInstruction"`
+    /// - `Ollama`: Prepended as `{"role": "system", "content": "..."}`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     system_prompt: Option<String>,
     /// Conversation messages (user, assistant, tool).

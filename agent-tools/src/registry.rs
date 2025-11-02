@@ -62,6 +62,10 @@ impl ToolDescriptor {
     }
 
     /// Produces a binding from this descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] if the factory function fails to create a valid binding.
     pub fn binding(self) -> ToolResult<ToolBinding> {
         (self.factory)()
     }

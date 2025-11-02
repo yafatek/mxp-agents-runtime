@@ -297,10 +297,9 @@ struct Candidate {
 
 fn map_prompt_message(message: &PromptMessage) -> Content {
     let role = match message.role() {
-        MessageRole::User => "user",
         MessageRole::Assistant => "model", // Gemini uses "model" instead of "assistant"
-        MessageRole::Tool => "user",       // Map tool to user
-        MessageRole::System => "user",     // Fallback, should be filtered out
+        // Tool and System map to "user" (system should be filtered out upstream)
+        MessageRole::User | MessageRole::Tool | MessageRole::System => "user",
     };
 
     let text = if message.role() == MessageRole::Tool {

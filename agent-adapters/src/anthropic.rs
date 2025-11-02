@@ -285,10 +285,10 @@ enum ContentBlock {
 
 fn map_prompt_message(message: &PromptMessage) -> AnthropicMessage {
     let role = match message.role() {
-        MessageRole::User => "user",
         MessageRole::Assistant => "assistant",
-        MessageRole::Tool => "user", // Anthropic doesn't have a tool role
-        MessageRole::System => "user", // Fallback, should be filtered out
+        // Anthropic doesn't have a tool role, and system should be filtered out
+        // All other roles map to "user"
+        MessageRole::User | MessageRole::Tool | MessageRole::System => "user",
     };
 
     let content = if message.role() == MessageRole::Tool {
