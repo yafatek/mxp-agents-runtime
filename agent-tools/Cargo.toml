@@ -3,7 +3,13 @@ name = "agent-tools"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+description = "Tool registry and execution sandbox for MXP agents"
+readme = "../README.md"
 
 [dependencies]
 agent-tools-macros = { path = "../agent-tools-macros" }

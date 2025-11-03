@@ -3,7 +3,13 @@ name = "agent-tools-macros"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+description = "Procedural macros for agent tool registration"
+readme = "../README.md"
 
 [lib]
 proc-macro = true

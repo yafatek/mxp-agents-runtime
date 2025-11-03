@@ -3,7 +3,13 @@ name = "agent-primitives"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+description = "Core primitives for MXP agent runtime: IDs, capabilities, manifests, and errors"
+readme = "../README.md"
 
 [dependencies]
 serde.workspace = true

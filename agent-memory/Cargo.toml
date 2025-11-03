@@ -3,7 +3,13 @@ name = "agent-memory"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+description = "Memory bus and vector store integration for MXP agents"
+readme = "../README.md"
 
 [dependencies]
 agent-primitives = { path = "../agent-primitives" }

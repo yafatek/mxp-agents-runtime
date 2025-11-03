@@ -1,0 +1,98 @@
+name: Publish Agents SDK to Crates.io
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests
+        run: cargo test --workspace
+      
+      - name: Login to Crates.io
+        run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Publish agent-primitives
+        run: cd agent-primitives && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-config
+        run: cd agent-config && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-telemetry
+        run: cd agent-telemetry && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-tools-macros
+        run: cd agent-tools-macros && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-tools
+        run: cd agent-tools && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-memory
+        run: cd agent-memory && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-policy
+        run: cd agent-policy && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-prompts
+        run: cd agent-prompts && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-adapters
+        run: cd agent-adapters && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish agent-kernel
+        run: cd agent-kernel && cargo publish
+        
+      - name: Wait for crates.io indexing
+        run: sleep 30
+      
+      - name: Publish mxp-agents (main facade)
+        run: cd mxp-agents && cargo publish
+

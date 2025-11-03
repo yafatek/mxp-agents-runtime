@@ -3,7 +3,13 @@ name = "agent-policy"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+description = "Policy engine and governance hooks for MXP agents"
+readme = "../README.md"
 
 [dependencies]
 agent-memory = { path = "../agent-memory" }
