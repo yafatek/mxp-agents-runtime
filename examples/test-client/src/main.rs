@@ -5,7 +5,9 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use mxp::{transport::SocketError, Message, MessageType, Transport, TransportConfig, TransportHandle};
+use mxp::{
+    transport::SocketError, Message, MessageType, Transport, TransportConfig, TransportHandle,
+};
 
 const COORDINATOR_ADDR: &str = "127.0.0.1:50051";
 const BUFFER_SIZE: usize = 32 * 1024;
@@ -17,7 +19,7 @@ fn main() -> Result<()> {
     println!("  2. Debug Error");
     println!();
     print!("Enter choice (1 or 2): ");
-    
+
     // Read from stdin
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
@@ -46,7 +48,7 @@ fn main() -> Result<()> {
     match choice {
         "1" => {
             println!("\n📝 Sending code review request...\n");
-            
+
             let code = r#"pub fn process_data(data: Vec<String>) -> Vec<String> {
     let mut result = Vec::new();
     for item in data {
@@ -62,8 +64,9 @@ fn main() -> Result<()> {
 
             let message = Message::new(MessageType::Call, serde_json::to_vec(&request)?);
             let encoded = message.encode();
-            
-            handle.send(&encoded, coordinator)
+
+            handle
+                .send(&encoded, coordinator)
                 .map_err(|e| anyhow::anyhow!("send failed: {:?}", e))?;
             println!("✓ Request sent to coordinator");
             println!("⏳ Waiting for response...\n");
@@ -72,7 +75,9 @@ fn main() -> Result<()> {
             match await_response(&handle, Duration::from_secs(60)) {
                 Ok((peer, msg)) => {
                     if let Some(MessageType::Response) = msg.message_type() {
-                        if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
+                        if let Ok(response) =
+                            serde_json::from_slice::<serde_json::Value>(msg.payload())
+                        {
                             println!("📬 Response from {}:\n", peer);
                             println!("{}\n", serde_json::to_string_pretty(&response)?);
                         }
@@ -85,7 +90,7 @@ fn main() -> Result<()> {
         }
         "2" => {
             println!("\n🐛 Sending debug request...\n");
-            
+
             let error = "I'm getting 'cannot borrow as mutable' error in Rust. \
                          The code tries to modify a vector while iterating over it.";
 
@@ -96,8 +101,9 @@ fn main() -> Result<()> {
 
             let message = Message::new(MessageType::Call, serde_json::to_vec(&request)?);
             let encoded = message.encode();
-            
-            handle.send(&encoded, coordinator)
+
+            handle
+                .send(&encoded, coordinator)
                 .map_err(|e| anyhow::anyhow!("send failed: {:?}", e))?;
             println!("✓ Request sent to coordinator");
             println!("⏳ Waiting for solution...\n");
@@ -106,7 +112,9 @@ fn main() -> Result<()> {
             match await_response(&handle, Duration::from_secs(60)) {
                 Ok((peer, msg)) => {
                     if let Some(MessageType::Response) = msg.message_type() {
-                        if let Ok(response) = serde_json::from_slice::<serde_json::Value>(msg.payload()) {
+                        if let Ok(response) =
+                            serde_json::from_slice::<serde_json::Value>(msg.payload())
+                        {
                             println!("📬 Response from {}:\n", peer);
                             println!("{}\n", serde_json::to_string_pretty(&response)?);
                         }
@@ -160,4 +168,3 @@ fn await_response(handle: &TransportHandle, max_wait: Duration) -> Result<(Socke
         }
     }
 }
-

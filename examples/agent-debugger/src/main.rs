@@ -120,8 +120,11 @@ async fn main() -> Result<()> {
 
                     if matches!(msg.message_type(), Some(MessageType::Call)) {
                         let payload_bytes = msg.payload();
-                        if let Ok(request) = serde_json::from_slice::<serde_json::Value>(payload_bytes) {
-                            if let Some(error_desc) = request.get("error").and_then(|v| v.as_str()) {
+                        if let Ok(request) =
+                            serde_json::from_slice::<serde_json::Value>(payload_bytes)
+                        {
+                            if let Some(error_desc) = request.get("error").and_then(|v| v.as_str())
+                            {
                                 info!("🐛 Debugging error...\n");
 
                                 // Add to context
@@ -174,7 +177,10 @@ async fn main() -> Result<()> {
                                     // Copy request_id if present
                                     if let Some(request_id) = request.get("request_id") {
                                         if let Some(obj) = response.as_object_mut() {
-                                            obj.insert("request_id".to_string(), request_id.clone());
+                                            obj.insert(
+                                                "request_id".to_string(),
+                                                request_id.clone(),
+                                            );
                                         }
                                     }
 

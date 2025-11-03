@@ -44,7 +44,9 @@ async fn main() -> Result<()> {
         pcap_recv_path: None,
     });
     let addr: SocketAddr = format!("127.0.0.1:{}", COORDINATOR_PORT).parse()?;
-    let handle = transport.bind(addr).map_err(|e| anyhow::anyhow!("Bind failed: {:?}", e))?;
+    let handle = transport
+        .bind(addr)
+        .map_err(|e| anyhow::anyhow!("Bind failed: {:?}", e))?;
 
     info!("✓ MXP transport ready");
 
@@ -121,19 +123,30 @@ async fn main() -> Result<()> {
                             info!("📬 Response from agent: {}", peer);
 
                             // Extract request_id from response
-                            if let Ok(response) = serde_json::from_str::<serde_json::Value>(&payload) {
-                                if let Some(request_id) = response.get("request_id").and_then(|v| v.as_str()) {
+                            if let Ok(response) =
+                                serde_json::from_str::<serde_json::Value>(&payload)
+                            {
+                                if let Some(request_id) =
+                                    response.get("request_id").and_then(|v| v.as_str())
+                                {
                                     let rt = tokio::runtime::Handle::current();
                                     let original_sender = rt.block_on(async {
                                         pending_clone.write().await.remove(request_id)
                                     });
 
                                     if let Some(client_addr) = original_sender {
-                                        info!("→ Forwarding response to original client: {}", client_addr);
-                                        
+                                        info!(
+                                            "→ Forwarding response to original client: {}",
+                                            client_addr
+                                        );
+
                                         // Forward response to original client
-                                        let response_msg = Message::new(MessageType::Response, msg.payload().to_vec());
-                                        match handle_clone.send(&response_msg.encode(), client_addr) {
+                                        let response_msg = Message::new(
+                                            MessageType::Response,
+                                            msg.payload().to_vec(),
+                                        );
+                                        match handle_clone.send(&response_msg.encode(), client_addr)
+                                        {
                                             Ok(_) => info!("✓ Response forwarded to client\n"),
                                             Err(e) => error!("Failed to forward response: {:?}", e),
                                         }
@@ -149,18 +162,23 @@ async fn main() -> Result<()> {
                             let payload = String::from_utf8_lossy(msg.payload());
                             info!("📞 Call request from {}: {}", peer, payload);
 
-                            if let Ok(mut request) = serde_json::from_str::<serde_json::Value>(&payload) {
-                                if let Some(task_type) = request.get("type").and_then(|v| v.as_str()) {
+                            if let Ok(mut request) =
+                                serde_json::from_str::<serde_json::Value>(&payload)
+                            {
+                                if let Some(task_type) =
+                                    request.get("type").and_then(|v| v.as_str())
+                                {
                                     let rt = tokio::runtime::Handle::current();
-                                    let agents_lock = rt.block_on(async { agents_clone.read().await });
+                                    let agents_lock =
+                                        rt.block_on(async { agents_clone.read().await });
 
                                     let target_agent = match task_type {
-                                        "code_review" => agents_lock
-                                            .values()
-                                            .find(|a| a.capabilities.contains(&"code.review".to_string())),
-                                        "debug" => agents_lock
-                                            .values()
-                                            .find(|a| a.capabilities.contains(&"debug.assist".to_string())),
+                                        "code_review" => agents_lock.values().find(|a| {
+                                            a.capabilities.contains(&"code.review".to_string())
+                                        }),
+                                        "debug" => agents_lock.values().find(|a| {
+                                            a.capabilities.contains(&"debug.assist".to_string())
+                                        }),
                                         _ => None,
                                     };
 
@@ -170,20 +188,28 @@ async fn main() -> Result<()> {
                                         // Generate request ID and store original sender
                                         let request_id = uuid::Uuid::new_v4().to_string();
                                         rt.block_on(async {
-                                            pending_clone.write().await.insert(request_id.clone(), peer);
+                                            pending_clone
+                                                .write()
+                                                .await
+                                                .insert(request_id.clone(), peer);
                                         });
 
                                         // Add request_id to the payload
                                         if let Some(obj) = request.as_object_mut() {
-                                            obj.insert("request_id".to_string(), serde_json::Value::String(request_id));
+                                            obj.insert(
+                                                "request_id".to_string(),
+                                                serde_json::Value::String(request_id),
+                                            );
                                         }
 
                                         // Forward the message with request_id
                                         let forward_msg = Message::new(
                                             MessageType::Call,
-                                            serde_json::to_vec(&request).unwrap()
+                                            serde_json::to_vec(&request).unwrap(),
                                         );
-                                        match handle_clone.send(&forward_msg.encode(), agent.endpoint) {
+                                        match handle_clone
+                                            .send(&forward_msg.encode(), agent.endpoint)
+                                        {
                                             Ok(_) => info!("✓ Request forwarded\n"),
                                             Err(e) => error!("Failed to forward: {:?}", e),
                                         }

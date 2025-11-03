@@ -15,7 +15,7 @@ pub enum TemplateError {
     #[error("missing required variable: {name}")]
     MissingVariable {
         /// Name of the missing variable.
-    name: String,
+        name: String,
     },
 
     /// Template rendering failed.

@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
 
             let coordinator: SocketAddr = COORDINATOR_ADDR.parse().unwrap();
             let encoded = message.encode();
-            
+
             match handle_clone.send(&encoded, coordinator) {
                 Ok(_) => info!("✓ Registered with coordinator"),
                 Err(e) => error!("Registration failed: {:?}", e),
@@ -111,17 +111,20 @@ async fn main() -> Result<()> {
 
                     if matches!(msg.message_type(), Some(MessageType::Call)) {
                         let payload_bytes = msg.payload();
-                        if let Ok(request) = serde_json::from_slice::<serde_json::Value>(payload_bytes) {
+                        if let Ok(request) =
+                            serde_json::from_slice::<serde_json::Value>(payload_bytes)
+                        {
                             if let Some(code) = request.get("code").and_then(|v| v.as_str()) {
                                 info!("🔍 Reviewing code...\n");
 
-                                let review_request = InferenceRequest::new(vec![PromptMessage::new(
-                                    MessageRole::User,
-                                    format!("Review this Rust code:\n\n```rust\n{}\n```", code),
-                                )])
-                                .unwrap()
-                                .with_system_prompt(&system_prompt)
-                                .with_temperature(0.3);
+                                let review_request =
+                                    InferenceRequest::new(vec![PromptMessage::new(
+                                        MessageRole::User,
+                                        format!("Review this Rust code:\n\n```rust\n{}\n```", code),
+                                    )])
+                                    .unwrap()
+                                    .with_system_prompt(&system_prompt)
+                                    .with_temperature(0.3);
 
                                 let rt = tokio::runtime::Handle::current();
                                 if let Ok(mut stream) = rt.block_on(adapter.infer(review_request)) {
@@ -142,7 +145,10 @@ async fn main() -> Result<()> {
                                     // Copy request_id if present
                                     if let Some(request_id) = request.get("request_id") {
                                         if let Some(obj) = response.as_object_mut() {
-                                            obj.insert("request_id".to_string(), request_id.clone());
+                                            obj.insert(
+                                                "request_id".to_string(),
+                                                request_id.clone(),
+                                            );
                                         }
                                     }
 
