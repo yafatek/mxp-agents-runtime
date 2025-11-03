@@ -12,8 +12,8 @@ description = "Tool registry and execution sandbox for MXP agents"
 readme = "../README.md"
 
 [dependencies]
-agent-tools-macros = { path = "../agent-tools-macros" }
-agent-primitives = { path = "../agent-primitives" }
+agent-tools-macros = { version = "0.1", path = "../agent-tools-macros" }
+agent-primitives = { version = "0.1", path = "../agent-primitives" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

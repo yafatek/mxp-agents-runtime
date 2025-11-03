@@ -12,7 +12,7 @@ description = "Memory bus and vector store integration for MXP agents"
 readme = "../README.md"
 
 [dependencies]
-agent-primitives = { path = "../agent-primitives" }
+agent-primitives = { version = "0.1", path = "../agent-primitives" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true

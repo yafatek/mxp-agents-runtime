@@ -12,11 +12,11 @@ description = "Agent lifecycle kernel for MXP: registration, discovery, heartbea
 readme = "../README.md"
 
 [dependencies]
-agent-primitives = { path = "../agent-primitives" }
-agent-adapters = { path = "../agent-adapters" }
-agent-tools = { path = "../agent-tools" }
-agent-memory = { path = "../agent-memory" }
-agent-policy = { path = "../agent-policy" }
+agent-primitives = { version = "0.1", path = "../agent-primitives" }
+agent-adapters = { version = "0.1", path = "../agent-adapters" }
+agent-tools = { version = "0.1", path = "../agent-tools" }
+agent-memory = { version = "0.1", path = "../agent-memory" }
+agent-policy = { version = "0.1", path = "../agent-policy" }
 async-trait.workspace = true
 futures.workspace = true
 mxp.workspace = true
