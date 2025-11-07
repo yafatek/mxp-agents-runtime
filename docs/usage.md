@@ -184,7 +184,49 @@ let adapter = OllamaAdapter::new(
 )?;
 ```
 
-### 5a. System Prompts
+### 6. Connect to the Relay Registry
+
+Agents discover each other through the Relay registry service. The SDK ships an MXP-native client
+that handles registration, heartbeats, and deregistration with automatic retry and
+re-registration when the registry requests it.
+
+```rust
+use mxp_agents::agent_kernel::{AgentKernel, MxpRegistryClient, RegistrationConfig, TaskScheduler};
+use mxp_agents::agent_primitives::{AgentId, AgentManifest};
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+let agent_id = AgentId::random();
+let agent_endpoint: SocketAddr = "127.0.0.1:50052".parse()?; // where this agent listens for MXP
+
+// Resolve and bind a UDP socket for registry communication.
+let registry = Arc::new(MxpRegistryClient::connect(
+    "127.0.0.1:50051",   // registry UDP endpoint (ClusterIP DNS in production)
+    agent_endpoint,
+    None,                 // optional TransportConfig override
+)?);
+
+let manifest = build_manifest(agent_id)?;
+let mut kernel = AgentKernel::new(agent_id, handler, TaskScheduler::default());
+kernel.set_registry(
+    Arc::clone(&registry),
+    manifest,
+    RegistrationConfig::default(),
+);
+```
+
+`MxpRegistryClient::connect`:
+
+- Resolves the registry endpoint (Kubernetes service DNS, load balancer, or localhost).
+- Binds an ephemeral UDP socket for request/response traffic.
+- Includes your agent’s advertised MXP endpoint in every registration.
+
+Heartbeats automatically trigger re-registration whenever the registry responds with
+`needs_register = true`. When the runtime transitions to `AgentState::Retiring` or
+`AgentState::Terminated`, the controller emits a final heartbeat with the `FINAL` flag so the
+registry removes the agent immediately.
+
+### 6a. System Prompts
 
 System prompts guide model behavior and are supported across all adapters with provider-native optimizations.
 
@@ -294,7 +336,7 @@ let specialized_prompt = template.render_with(&runtime_vars)?;
        .build()?;
    ```
 
-### 5b. Context Window Management (Optional)
+### 6b. Context Window Management (Optional)
 
 For long conversations, enable automatic context management to stay within token budgets:
 
@@ -362,7 +404,7 @@ if let Some(summary) = manager.summarized_history() {
 }
 ```
 
-### 6. Bootstrap Memory & Policy
+### 7. Bootstrap Memory & Policy
 
 ```rust
 use mxp_agents::agent_memory::{MemoryBusBuilder, VolatileConfig};
@@ -411,7 +453,7 @@ let observer = CompositePolicyObserver::new([
 ]);
 ```
 
-### 7. Assemble the Kernel
+### 8. Assemble the Kernel
 
 ```rust
 use mxp_agents::agent_kernel::{KernelMessageHandler, TracingCallSink};
@@ -429,7 +471,7 @@ let kernel = AgentKernel::new(manifest, handler) // plus registry + scheduler co
     .spawn()?;
 ```
 
-### 8. Run & Observe
+### 9. Run & Observe
 - Send MXP `Call` messages to the kernel to trigger `CallExecutor`.
 - Tool invocations, model responses, and memory writes will appear in the configured journal.
 - Policy denials/escalations emit tracing logs and MXP audit events for governance agents.

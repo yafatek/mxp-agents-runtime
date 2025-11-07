@@ -1,6 +1,9 @@
 //! Agent registry integration for Relay mesh discovery and heartbeats.
 
+use std::collections::HashMap;
 use std::fmt;
+use std::io::ErrorKind;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8,11 +11,17 @@ use std::time::Duration;
 
 use agent_primitives::AgentManifest;
 use async_trait::async_trait;
+use mxp::protocol::Flags;
+use mxp::transport::{SocketError, Transport, TransportConfig, TransportHandle};
+use mxp::{Message, MessageType};
 use thiserror::Error;
 use tokio::task::JoinHandle;
 use tokio::time::{MissedTickBehavior, sleep};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
+use crate::registry_wire::{
+    ErrorResponse, HeartbeatRequest, HeartbeatResponse, RegisterRequest, RegisterResponse,
+};
 use crate::{AgentState, SchedulerError, TaskScheduler};
 
 /// Configuration for registration and heartbeat maintenance.
@@ -134,6 +143,168 @@ impl RegistryError {
         Self::Backend {
             reason: reason.into(),
         }
+    }
+}
+
+/// MXP-backed registry client that speaks directly to the Relay registry service.
+#[derive(Debug)]
+pub struct MxpRegistryClient {
+    handle: TransportHandle,
+    registry_addr: SocketAddr,
+    agent_endpoint: SocketAddr,
+}
+
+impl MxpRegistryClient {
+    /// Establishes a registry client using the provided endpoint configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegistryError::Backend`] if the transport cannot be bound.
+    pub fn connect(
+        registry_addr: impl ToSocketAddrs,
+        agent_endpoint: SocketAddr,
+        transport_config: Option<TransportConfig>,
+    ) -> RegistryResult<Self> {
+        let registry_addr = registry_addr
+            .to_socket_addrs()
+            .map_err(|err| {
+                RegistryError::backend(format!("failed to resolve registry endpoint: {err:?}"))
+            })?
+            .next()
+            .ok_or_else(|| RegistryError::backend("registry endpoint resolved to no address"))?;
+
+        let config = transport_config.unwrap_or_else(default_transport_config);
+        let transport = Transport::new(config);
+        let local_bind: SocketAddr = "0.0.0.0:0".parse().map_err(|err| {
+            RegistryError::backend(format!("invalid bind address configuration: {err:?}"))
+        })?;
+        let handle = transport
+            .bind(local_bind)
+            .map_err(|err| RegistryError::backend(format!("transport bind failed: {err:?}")))?;
+
+        Ok(Self {
+            handle,
+            registry_addr,
+            agent_endpoint,
+        })
+    }
+
+    fn agent_id(manifest: &AgentManifest) -> String {
+        manifest.id().to_string()
+    }
+
+    fn manifest_to_register_request(&self, manifest: &AgentManifest) -> RegisterRequest {
+        let capabilities = manifest
+            .capabilities()
+            .iter()
+            .map(|cap| cap.id().as_str().to_string())
+            .collect::<Vec<_>>();
+
+        let mut metadata = HashMap::new();
+        metadata.insert("version".to_string(), manifest.version().to_string());
+        if let Some(description) = manifest.description() {
+            metadata.insert("description".to_string(), description.to_string());
+        }
+        if !manifest.tags().is_empty() {
+            metadata.insert(
+                "tags".to_string(),
+                serde_json::to_string(manifest.tags()).unwrap_or_default(),
+            );
+        }
+
+        RegisterRequest {
+            id: Self::agent_id(manifest),
+            name: manifest.name().to_string(),
+            capabilities,
+            address: self.agent_endpoint,
+            metadata,
+        }
+    }
+
+    fn send_request_blocking(
+        handle: &TransportHandle,
+        registry_addr: SocketAddr,
+        message: &Message,
+    ) -> RegistryResult<Message> {
+        let encoded = message.encode();
+        let message_id = message.message_id();
+
+        handle
+            .send(&encoded, registry_addr)
+            .map_err(|err| RegistryError::backend(format!("send failed: {err:?}")))?;
+
+        let mut buffer = handle.acquire_buffer();
+        let response = loop {
+            match handle.receive(&mut buffer) {
+                Ok((_len, _addr)) => {
+                    let payload = buffer.as_slice().to_vec();
+                    match Message::decode(payload) {
+                        Ok(response) => {
+                            if response.message_id() == message_id {
+                                break response;
+                            }
+                        }
+                        Err(err) => {
+                            return Err(RegistryError::backend(format!(
+                                "failed to decode registry response: {err:?}"
+                            )));
+                        }
+                    }
+                }
+                Err(SocketError::Io(err))
+                    if matches!(
+                        err.kind(),
+                        ErrorKind::WouldBlock | ErrorKind::TimedOut | ErrorKind::Interrupted
+                    ) =>
+                {
+                    if err.kind() == ErrorKind::Interrupted {
+                        debug!("registry receive interrupted; retrying");
+                        continue;
+                    }
+                    return Err(RegistryError::backend(
+                        "timed out waiting for registry response",
+                    ));
+                }
+                Err(SocketError::Io(err)) => {
+                    return Err(RegistryError::backend(format!(
+                        "registry receive failed: {err:?}"
+                    )));
+                }
+            }
+        };
+
+        Ok(response)
+    }
+
+    async fn send_request(&self, message: Message) -> RegistryResult<Message> {
+        let handle = self.handle.clone();
+        let registry_addr = self.registry_addr;
+        tokio::task::spawn_blocking(move || {
+            Self::send_request_blocking(&handle, registry_addr, &message)
+        })
+        .await
+        .map_err(|err| RegistryError::backend(format!("registry task join error: {err:?}")))?
+    }
+
+    fn handle_error_message(message: &Message) -> RegistryResult<()> {
+        let payload =
+            serde_json::from_slice::<ErrorResponse>(message.payload()).map_err(|err| {
+                RegistryError::backend(format!("failed to parse registry error payload: {err:?}"))
+            })?;
+        Err(RegistryError::backend(payload.error))
+    }
+}
+
+fn default_transport_config() -> TransportConfig {
+    TransportConfig {
+        buffer_size: 16 * 1024,
+        max_buffers: 256,
+        read_timeout: Some(Duration::from_secs(5)),
+        write_timeout: Some(Duration::from_secs(5)),
+        #[cfg(feature = "debug-tools")]
+        pcap_send_path: None,
+        #[cfg(feature = "debug-tools")]
+        pcap_recv_path: None,
     }
 }
 
@@ -401,5 +572,106 @@ mod tests {
             .unwrap();
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert!(registry.deregistrations.load(Ordering::SeqCst) >= 1);
+    }
+}
+
+#[async_trait]
+impl AgentRegistry for MxpRegistryClient {
+    async fn register(&self, manifest: &AgentManifest) -> RegistryResult<()> {
+        let request = self.manifest_to_register_request(manifest);
+        let payload = serde_json::to_vec(&request)
+            .map_err(|err| RegistryError::backend(format!("encode register payload: {err:?}")))?;
+        let message = Message::new(MessageType::AgentRegister, payload);
+        let response = self.send_request(message).await?;
+
+        match response.message_type() {
+            Some(MessageType::Response) => {
+                let ack = serde_json::from_slice::<RegisterResponse>(response.payload()).map_err(
+                    |err| {
+                        RegistryError::backend(format!("parse register response failed: {err:?}"))
+                    },
+                )?;
+                if ack.success {
+                    debug!(agent_id = ack.agent_id, "registry registration acked");
+                    Ok(())
+                } else {
+                    Err(RegistryError::backend(format!(
+                        "registry rejected registration: {}",
+                        ack.message
+                    )))
+                }
+            }
+            Some(MessageType::Error) => Self::handle_error_message(&response),
+            other => Err(RegistryError::backend(format!(
+                "unexpected message type {other:?} for register response"
+            ))),
+        }
+    }
+
+    async fn heartbeat(&self, manifest: &AgentManifest) -> RegistryResult<()> {
+        let request = HeartbeatRequest {
+            agent_id: Self::agent_id(manifest),
+        };
+        let payload = serde_json::to_vec(&request)
+            .map_err(|err| RegistryError::backend(format!("encode heartbeat payload: {err:?}")))?;
+        let message = Message::new(MessageType::AgentHeartbeat, payload);
+        let response = self.send_request(message).await?;
+
+        match response.message_type() {
+            Some(MessageType::Response) => {
+                let ack = serde_json::from_slice::<HeartbeatResponse>(response.payload()).map_err(
+                    |err| {
+                        RegistryError::backend(format!("parse heartbeat response failed: {err:?}"))
+                    },
+                )?;
+                if ack.success && !ack.needs_register {
+                    Ok(())
+                } else if ack.needs_register {
+                    Err(RegistryError::backend("registry requested re-registration"))
+                } else {
+                    Err(RegistryError::backend(
+                        ack.message
+                            .unwrap_or_else(|| "heartbeat rejected".to_string()),
+                    ))
+                }
+            }
+            Some(MessageType::Error) => Self::handle_error_message(&response),
+            other => Err(RegistryError::backend(format!(
+                "unexpected message type {other:?} for heartbeat response"
+            ))),
+        }
+    }
+
+    async fn deregister(&self, manifest: &AgentManifest) -> RegistryResult<()> {
+        let request = HeartbeatRequest {
+            agent_id: Self::agent_id(manifest),
+        };
+        let payload = serde_json::to_vec(&request)
+            .map_err(|err| RegistryError::backend(format!("encode deregister payload: {err:?}")))?;
+        let mut message = Message::new(MessageType::AgentHeartbeat, payload);
+        message.set_flags(message.flags().with(Flags::FINAL));
+        let response = self.send_request(message).await?;
+
+        match response.message_type() {
+            Some(MessageType::Response) => {
+                let ack = serde_json::from_slice::<HeartbeatResponse>(response.payload()).map_err(
+                    |err| {
+                        RegistryError::backend(format!("parse deregister response failed: {err:?}"))
+                    },
+                )?;
+                if ack.success {
+                    Ok(())
+                } else {
+                    Err(RegistryError::backend(
+                        ack.message
+                            .unwrap_or_else(|| "deregister failed".to_string()),
+                    ))
+                }
+            }
+            Some(MessageType::Error) => Self::handle_error_message(&response),
+            other => Err(RegistryError::backend(format!(
+                "unexpected message type {other:?} for deregister response"
+            ))),
+        }
     }
 }

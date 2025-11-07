@@ -5,6 +5,22 @@ All notable changes to the Agents Runtime SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-11-07
+
+### Added
+- `MxpRegistryClient` for MXP-native registry registration, heartbeats (with `needs_register` handling), and final deregistration.
+- Shared registry wire types (`RegisterRequest`, `DiscoverResponse`, `HeartbeatResponse`, etc.) exposed from `agent-kernel::registry_wire` for agents to consume when talking to the Relay registry.
+- Documentation updates covering registry configuration and usage in `docs/usage.md`.
+
+### Changed
+- Runtime registry control loop now converts manifests into wire payloads with metadata (version, description, tags) before registering.
+- Heartbeat loop interprets registry responses and triggers re-registration when required.
+
+### Testing
+- `cargo fmt`
+- `cargo clippy --all -- -D warnings`
+- `cargo test --all`
+
 ## [0.2.0] - 2025-11-07
 
 ### Added
@@ -68,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory integration
 - Distributed tracing support
 
+[0.2.1]: https://github.com/yafatek/relay/compare/agents-sdk-v0.2.0...agents-sdk-v0.2.1
 [0.2.0]: https://github.com/yafatek/relay/compare/agents-sdk-v0.1.0...agents-sdk-v0.2.0
 [0.1.0]: https://github.com/yafatek/relay/releases/tag/agents-sdk-v0.1.0
 

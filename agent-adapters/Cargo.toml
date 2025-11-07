@@ -12,8 +12,8 @@ description = "LLM adapters for OpenAI, Anthropic, Gemini, and Ollama"
 readme = "../README.md"
 
 [dependencies]
-agent-primitives = { version = "0.2", path = "../agent-primitives" }
-agent-prompts = { version = "0.2", path = "../agent-prompts" }
+agent-primitives = { version = "0.2.1", path = "../agent-primitives" }
+agent-prompts = { version = "0.2.1", path = "../agent-prompts" }
 anyhow.workspace = true
 async-trait.workspace = true
 futures.workspace = true

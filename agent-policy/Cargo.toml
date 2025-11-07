@@ -12,8 +12,8 @@ description = "Policy engine and governance hooks for MXP agents"
 readme = "../README.md"
 
 [dependencies]
-agent-memory = { version = "0.2", path = "../agent-memory" }
-agent-primitives = { version = "0.2", path = "../agent-primitives" }
+agent-memory = { version = "0.2.1", path = "../agent-memory" }
+agent-primitives = { version = "0.2.1", path = "../agent-primitives" }
 anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true

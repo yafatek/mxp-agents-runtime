@@ -7,15 +7,15 @@ readme = "../README.md"
 description = "MXP-native autonomous agent runtime SDK"
 
 [dependencies]
-agent-primitives = { version = "0.2", path = "../agent-primitives" }
-agent-kernel = { version = "0.2", path = "../agent-kernel", optional = true }
-agent-adapters = { version = "0.2", path = "../agent-adapters", optional = true }
-agent-tools = { version = "0.2", path = "../agent-tools", optional = true }
-agent-memory = { version = "0.2", path = "../agent-memory", optional = true }
-agent-policy = { version = "0.2", path = "../agent-policy", optional = true }
-agent-telemetry = { version = "0.2", path = "../agent-telemetry", optional = true }
-agent-prompts = { version = "0.2", path = "../agent-prompts", optional = true }
-agent-config = { version = "0.2", path = "../agent-config", optional = true }
+agent-primitives = { version = "0.2.1", path = "../agent-primitives" }
+agent-kernel = { version = "0.2.1", path = "../agent-kernel", optional = true }
+agent-adapters = { version = "0.2.1", path = "../agent-adapters", optional = true }
+agent-tools = { version = "0.2.1", path = "../agent-tools", optional = true }
+agent-memory = { version = "0.2.1", path = "../agent-memory", optional = true }
+agent-policy = { version = "0.2.1", path = "../agent-policy", optional = true }
+agent-telemetry = { version = "0.2.1", path = "../agent-telemetry", optional = true }
+agent-prompts = { version = "0.2.1", path = "../agent-prompts", optional = true }
+agent-config = { version = "0.2.1", path = "../agent-config", optional = true }
 
 [features]
 default = [

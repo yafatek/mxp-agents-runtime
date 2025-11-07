@@ -9,6 +9,7 @@ mod call;
 mod lifecycle;
 mod mxp_handlers;
 mod registry;
+mod registry_wire;
 mod scheduler;
 
 use std::sync::Arc;
@@ -28,7 +29,13 @@ pub use call::{
 };
 pub use lifecycle::{AgentState, Lifecycle, LifecycleError, LifecycleEvent, LifecycleResult};
 pub use mxp_handlers::{AgentMessageHandler, HandlerContext, HandlerError, HandlerResult};
-pub use registry::{AgentRegistry, RegistrationConfig, RegistryError, RegistryResult};
+pub use registry::{
+    AgentRegistry, MxpRegistryClient, RegistrationConfig, RegistryError, RegistryResult,
+};
+pub use registry_wire::{
+    AgentRecord, AgentStatus as WireAgentStatus, DiscoverRequest, DiscoverResponse, ErrorResponse,
+    HeartbeatRequest, HeartbeatResponse, RegisterRequest, RegisterResponse,
+};
 pub use scheduler::{SchedulerConfig, SchedulerError, SchedulerResult, TaskScheduler};
 
 use registry::RegistrationController;

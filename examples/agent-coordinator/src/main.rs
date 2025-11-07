@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
                                         info!("  Endpoint: {}\n", addr);
 
                                         // Send ACK
-                                        let ack = Message::new(MessageType::Ack, &[]);
+                                        let ack = Message::new(MessageType::Ack, []);
                                         let _ = handle_clone.send(&ack.encode(), peer);
                                     }
                                 }

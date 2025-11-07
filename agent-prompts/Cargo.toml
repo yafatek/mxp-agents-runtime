@@ -12,7 +12,7 @@ description = "Prompt management and context window handling for MXP agents"
 readme = "../README.md"
 
 [dependencies]
-agent-primitives = { version = "0.2", path = "../agent-primitives" }
+agent-primitives = { version = "0.2.1", path = "../agent-primitives" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

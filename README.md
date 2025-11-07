@@ -27,6 +27,7 @@ cargo add mxp-agents
 
 - MXP crate (e.g. `mxp = "0.2.0"`) provides the transport primitives. We no longer rely on QUIC; all messaging assumes the custom MXP stack and UDP carrier.
 - Helpers for `AgentRegister`, `AgentHeartbeat`, `Call`, `Response`, `Event`, and `Stream*` payloads are part of the SDK surface.
+- `MxpRegistryClient` handles registry registration, heartbeats (including `needs_register` responses), and graceful deregistration over MXP so agents can bootstrap themselves inside the mesh.
 
 ### Key concepts
 
