@@ -25,7 +25,7 @@ cargo add mxp-agents
 
 ### MXP integration
 
-- MXP crate (e.g. `mxp = "0.1.103"`) provides the transport primitives. We no longer rely on QUIC; all messaging assumes the custom MXP stack and UDP carrier.
+- MXP crate (e.g. `mxp = "0.2.0"`) provides the transport primitives. We no longer rely on QUIC; all messaging assumes the custom MXP stack and UDP carrier.
 - Helpers for `AgentRegister`, `AgentHeartbeat`, `Call`, `Response`, `Event`, and `Stream*` payloads are part of the SDK surface.
 
 ### Key concepts

@@ -10,7 +10,7 @@ agent-kernel = { path = "../../agent-kernel" }
 agent-adapters = { path = "../../agent-adapters" }
 agent-tools = { path = "../../agent-tools" }
 agent-prompts = { path = "../../agent-prompts" }
-mxp = "0.1.103"
+mxp = "0.2.0"
 tokio.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 agent-primitives = { path = "../../agent-primitives" }
-mxp = "0.1.103"
+mxp = "0.2.0"
 tokio.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
