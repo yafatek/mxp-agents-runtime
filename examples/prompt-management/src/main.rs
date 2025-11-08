@@ -125,7 +125,7 @@ fn demonstrate_adapter_usage() -> Result<()> {
     let system_template = PromptTemplate::builder(
         "You are {{agent_name}}, an AI agent in the MXP mesh. {{personality}}",
     )
-    .with_variable("agent_name", "RelayBot")
+    .with_variable("agent_name", "MXP NexusBot")
     .with_variable("personality", "You are concise, technical, and helpful.")
     .build()?;
 

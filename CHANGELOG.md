@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `MxpRegistryClient` for MXP-native registry registration, heartbeats (with `needs_register` handling), and final deregistration.
-- Shared registry wire types (`RegisterRequest`, `DiscoverResponse`, `HeartbeatResponse`, etc.) exposed from `agent-kernel::registry_wire` for agents to consume when talking to the Relay registry.
+- Shared registry wire types (`RegisterRequest`, `DiscoverResponse`, `HeartbeatResponse`, etc.) exposed from `agent-kernel::registry_wire` for agents to consume when talking to the MXP Nexus registry.
 - Documentation updates covering registry configuration and usage in `docs/usage.md`.
 
 ### Changed
@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory integration
 - Distributed tracing support
 
-[0.2.1]: https://github.com/yafatek/relay/compare/agents-sdk-v0.2.0...agents-sdk-v0.2.1
-[0.2.0]: https://github.com/yafatek/relay/compare/agents-sdk-v0.1.0...agents-sdk-v0.2.0
-[0.1.0]: https://github.com/yafatek/relay/releases/tag/agents-sdk-v0.1.0
+[0.2.1]: https://github.com/yafatek/mxpnexus/compare/agents-sdk-v0.2.0...agents-sdk-v0.2.1
+[0.2.0]: https://github.com/yafatek/mxpnexus/compare/agents-sdk-v0.1.0...agents-sdk-v0.2.0
+[0.1.0]: https://github.com/yafatek/mxpnexus/releases/tag/agents-sdk-v0.1.0
 

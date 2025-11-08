@@ -13,5 +13,5 @@ pub use capability::{Capability, CapabilityBuilder, CapabilityId};
 pub use error::{Error, Result};
 /// Unique identifier for MXP agents within the mesh.
 pub use ids::AgentId;
-/// Agent metadata advertised to the Relay mesh directory.
+/// Agent metadata advertised to the MXP Nexus mesh directory.
 pub use manifest::{AgentManifest, AgentManifestBuilder};

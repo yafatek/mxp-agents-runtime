@@ -1,4 +1,4 @@
-//! Wire-level structures for communicating with the Relay registry over MXP.
+//! Wire-level structures for communicating with the MXP Nexus registry over MXP.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;

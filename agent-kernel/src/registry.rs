@@ -1,4 +1,4 @@
-//! Agent registry integration for Relay mesh discovery and heartbeats.
+//! Agent registry integration for MXP Nexus mesh discovery and heartbeats.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -146,7 +146,7 @@ impl RegistryError {
     }
 }
 
-/// MXP-backed registry client that speaks directly to the Relay registry service.
+/// MXP-backed registry client that speaks directly to the MXP Nexus registry service.
 #[derive(Debug)]
 pub struct MxpRegistryClient {
     handle: TransportHandle,

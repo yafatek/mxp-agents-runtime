@@ -1,6 +1,6 @@
 ## Agents Runtime SDK Overview
 
-Relay's Agents Runtime SDK lets teams build, ship, and operate autonomous agents that communicate natively over MXP (`mxp://`). The SDK focuses on deterministic behaviour, low-latency execution, and strong governance so that every agent published into the Relay mesh behaves predictably and safely.
+MXP Nexus's Agents Runtime SDK lets teams build, ship, and operate autonomous agents that communicate natively over MXP (`mxp://`). The SDK focuses on deterministic behaviour, low-latency execution, and strong governance so that every agent published into the MXP Nexus mesh behaves predictably and safely.
 
 ### Design Principles
 
@@ -23,7 +23,7 @@ Relay's Agents Runtime SDK lets teams build, ship, and operate autonomous agents
 
 ### Agent Lifecycle
 
-1. **Provision**: Agents register with the Relay mesh directory via MXP `AgentRegister`, publishing capabilities, attestation metadata, and governance profile.
+1. **Provision**: Agents register with the MXP Nexus mesh directory via MXP `AgentRegister`, publishing capabilities, attestation metadata, and governance profile.
 2. **Initialise**: `AgentKernel` boots dependencies (model adapters, tools, memory providers) and validates policy bindings.
 3. **Operate**: Incoming MXP messages (`Call`, `Event`, `Stream*`) enter the planner loop, which may invoke tools, schedule subtasks, or request operator approval.
 4. **Checkpoint**: Significant state transitions are recorded into the episodic journal and long-term memory (see MXP Vector Store below).
@@ -42,13 +42,13 @@ Relay's Agents Runtime SDK lets teams build, ship, and operate autonomous agents
 - **Episodic journal**: Append-only log persisted via MXP `StreamChunk`, enabling deterministic replay and audit.
 - **MXP Vector Store (long-term)**: Upcoming first-party store optimised for MXP workloads—vector embeddings, metadata, and policy tags travel over MXP without third-party dependencies. The SDK exposes traits today so agents can compile against the API and swap in the concrete store once available.
   - Encryption-at-rest and in-flight with agent-specific keys.
-  - Multi-tenant isolation aligned with Relay governance domains.
+  - Multi-tenant isolation aligned with MXP Nexus governance domains.
   - Pluggable embedding pipelines to support both centralised and on-device embedding generation.
 
 ### Security & Governance
 
 - Capability-based tool access with signed manifests and runtime enforcement.
-- Policy engine integrates with Relay governance service; supports synchronous deny/allow as well as human approval callbacks.
+- Policy engine integrates with MXP Nexus governance service; supports synchronous deny/allow as well as human approval callbacks.
 - Every external effect emits a structured audit span (`tracing` + MXP `Event`) for compliance and incident forensics.
 - Agents authenticate using Ed25519 identities; MXP payloads may be encrypted with AEAD for sensitive data.
 

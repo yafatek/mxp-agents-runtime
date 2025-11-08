@@ -184,9 +184,9 @@ let adapter = OllamaAdapter::new(
 )?;
 ```
 
-### 6. Connect to the Relay Registry
+### 6. Connect to the MXP Nexus Registry
 
-Agents discover each other through the Relay registry service. The SDK ships an MXP-native client
+Agents discover each other through the MXP Nexus registry service. The SDK ships an MXP-native client
 that handles registration, heartbeats, and deregistration with automatic retry and
 re-registration when the registry requests it.
 
@@ -279,7 +279,7 @@ use mxp_agents::agent_prompts::{PromptTemplate, TemplateBuilder};
 let template = PromptTemplate::builder(
     "You are {{agent_name}}, an AI agent in the MXP mesh. {{personality}}"
 )
-.with_variable("agent_name", "RelayBot")
+.with_variable("agent_name", "NexusBot")
 .with_variable("personality", "You are concise, technical, and helpful.")
 .build()?;
 
@@ -492,7 +492,7 @@ cargo run -p basic-agent -- --governance 127.0.0.1:9100
 ```
 
 ### Next Steps
-- Wire up your own MXP transport so the kernel can register, heartbeat, and receive messages from the Relay mesh.
+- Wire up your own MXP transport so the kernel can register, heartbeat, and receive messages from the MXP Nexus mesh.
 - Extend the policy engine with escalation flows to human operators.
 - Implement vector store backends that satisfy the `VectorStoreClient` trait for semantic recall.
 

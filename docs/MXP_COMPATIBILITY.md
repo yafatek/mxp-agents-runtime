@@ -210,7 +210,7 @@ let (message, addr) = transport.recv().await?;
 ## Why They're Compatible
 
 ### 1. **Same Ecosystem**
-Both projects are part of the **Relay** ecosystem:
+Both projects are part of the **MXP Nexus** ecosystem:
 - **MXP Protocol**: The wire protocol (how agents talk)
 - **Agents SDK**: The runtime (what agents run on)
 

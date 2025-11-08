@@ -1,4 +1,4 @@
-//! Agent metadata advertised to the Relay mesh directory.
+//! Agent metadata advertised to the MXP Nexus mesh directory.
 
 use serde::{Deserialize, Serialize};
 

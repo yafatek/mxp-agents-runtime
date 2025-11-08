@@ -1,6 +1,6 @@
 ## Agents Runtime SDK
 
-Rust SDK for building autonomous AI agents that operate over the MXP (`mxp://`) protocol. The focus is low-latency planning, secure execution, and predictable behaviour—this SDK is what agents use before they are deployed onto the Relay mesh.
+Rust SDK for building autonomous AI agents that operate over the MXP (`mxp://`) protocol. The focus is low-latency planning, secure execution, and predictable behaviour—this SDK is what agents use before they are deployed onto the MXP Nexus mesh.
 
 Install once via the bundled facade crate:
 
@@ -11,13 +11,13 @@ cargo add mxp-agents
 ### Why it exists
 
 - Provide a unified runtime that wraps LLMs, tools, memory, and governance without depending on QUIC or third-party transports.
-- Ensure every agent built for Relay speaks MXP natively and adheres to platform security, observability, and performance rules.
-- Offer a developer-friendly path to compose agents locally, then promote them into the Relay platform when ready.
+- Ensure every agent built for MXP Nexus speaks MXP natively and adheres to platform security, observability, and performance rules.
+- Offer a developer-friendly path to compose agents locally, then promote them into the MXP Nexus platform when ready.
 
 ### Scope
 
 - **In scope**: agent lifecycle management, LLM connectors, tool registration, policy hooks, MXP message handling, memory integration (including the upcoming MXP Vector Store).
-- **Out of scope**: Relay deployment tooling, mesh scheduling, or any "deep agents" research-oriented SDK—handled by separate projects.
+- **Out of scope**: MXP Nexus deployment tooling, mesh scheduling, or any "deep agents" research-oriented SDK—handled by separate projects.
 
 ### Supported LLM stacks
 

@@ -69,7 +69,7 @@ All crates live under `agents-runtime-sdk/` using a Cargo workspace. Shared type
 **2.8 Policy & Governance**
 - `PolicyEngine` loads policies (Rego/DSL) and evaluates `PolicyRequest` objects describing intent, data sensitivity, and tool usage.
 - Synchronous flow: returns `PolicyDecision::Allow`, `::Deny`, or `::Escalate` (human approval required).
-- Integrations with Relay governance service via MXP `Call` to dedicated governance agents.
+- Integrations with MXP Nexus governance service via MXP `Call` to dedicated governance agents.
 - Observers: `TracingPolicyObserver`, `MxpAuditObserver`, and `CompositePolicyObserver` enable multi-sink decision fan-out.
 - Audit events emitted for denials/escalations via MXP `Event` payloads for downstream governance agents.
 - `CompositeAuditEmitter` and `GovernanceAuditEmitter` propagate audit events to tracing sinks and remote governance agents over MXP transport.

@@ -25,12 +25,12 @@ edition = "2024"
 version = "0.2.1"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/yafatek/relay"
-homepage = "https://relaymxp.xyz"
+repository = "https://github.com/yafatek/mxpnexus"
+homepage = "https://mxpnexus.com"
 documentation = "https://docs.rs/mxp-agents"
 keywords = ["mxp", "agents", "ai", "runtime", "protocol"]
 categories = ["network-programming", "asynchronous", "api-bindings"]
-authors = ["Feras <feras@relaymxp.xyz>"]
+authors = ["Feras <feras@mxpnexus.com>"]
 
 [workspace.dependencies]
 anyhow = "1.0.100"
